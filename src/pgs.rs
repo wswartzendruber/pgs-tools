@@ -55,18 +55,6 @@ mod pgs {
         EpochStart,
     }
 
-    pub struct CompObj {
-        obj_id: u16,
-        win_id: u8,
-        cropped: bool,
-        x: u16,
-        y: u16,
-        x_cropped: Option<u16>,
-        y_cropped: Option<u16>,
-        width_cropped: Option<u16>,
-        height_cropped: Option<u16>,
-    }
-
     pub struct PresCompSeg {
         width: u16,
         height: u16,
@@ -75,6 +63,21 @@ mod pgs {
         pal_update: bool,
         pal_id: u8,
         comp_objs: Vec<CompObj>,
+    }
+
+    pub struct CompObj {
+        obj_id: u16,
+        win_id: u8,
+        x: u16,
+        y: u16,
+        crop: Option<CompObjCrop>,
+    }
+
+    pub struct CompObjCrop {
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
     }
 
     pub enum SegBody {
@@ -151,38 +154,26 @@ mod pgs {
             };
             let x = input.read_u16::<BigEndian>()?;
             let y = input.read_u16::<BigEndian>()?;
-            let (
-                x_cropped,
-                y_cropped,
-                width_cropped,
-                height_cropped,
-            ) = if cropped {
-                (
-                    Some(input.read_u16::<BigEndian>()?),
-                    Some(input.read_u16::<BigEndian>()?),
-                    Some(input.read_u16::<BigEndian>()?),
-                    Some(input.read_u16::<BigEndian>()?),
+            let crop = if cropped {
+                Some(
+                    CompObjCrop {
+                        x: input.read_u16::<BigEndian>()?,
+                        y: input.read_u16::<BigEndian>()?,
+                        width: input.read_u16::<BigEndian>()?,
+                        height: input.read_u16::<BigEndian>()?,
+                    }
                 )
             } else {
-                (
-                    None,
-                    None,
-                    None,
-                    None,
-                )
+                None
             };
 
             comp_objs.push(
                 CompObj {
                     obj_id,
                     win_id,
-                    cropped,
                     x,
                     y,
-                    x_cropped,
-                    y_cropped,
-                    width_cropped,
-                    height_cropped,
+                    crop,
                 }
             );
         }
