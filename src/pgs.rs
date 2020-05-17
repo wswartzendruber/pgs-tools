@@ -51,6 +51,7 @@ mod pgs {
 
     pub enum SegBody {
         PresComp(PresCompSeg),
+        WinDef(Vec<WinDefSeg>),
     }
 
     pub enum CompState {
@@ -90,6 +91,14 @@ mod pgs {
         height: u16,
     }
 
+    pub struct WinDefSeg {
+        id: u8,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+    }
+
     pub trait ReadExt {
         fn read_seg(&mut self) -> SegResult<Seg>;
     }
@@ -108,7 +117,7 @@ mod pgs {
                 //0x14 =>
                 //0x15 =>
                 0x16 => SegBody::PresComp(parse_pcs(self)?),
-                //0x17 =>
+                0x17 => SegBody::WinDef(parse_wds(self)?),
                 //0x80 =>
                 _ => return Err(SegError::UnrecognizedKind),
             };
@@ -189,5 +198,25 @@ mod pgs {
                 comp_objs,
             }
         )
+    }
+
+    fn parse_wds(input: &mut dyn Read) -> SegResult<Vec<WinDefSeg>> {
+
+        let mut return_value = Vec::new();
+        let size = input.read_u16::<BigEndian>()? as usize;
+        let count = input.read_u8()? as usize;
+
+        for _ in 0..count {
+
+            let id = input.read_u8()?;
+            let x = input.read_u16::<BigEndian>()?;
+            let y = input.read_u16::<BigEndian>()?;
+            let width = input.read_u16::<BigEndian>()?;
+            let height = input.read_u16::<BigEndian>()?;
+
+            return_value.push(WinDefSeg { id, x, y, width, height });
+        }
+
+        Ok(return_value)
     }
 }
