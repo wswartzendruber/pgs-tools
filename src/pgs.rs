@@ -58,6 +58,7 @@ mod pgs {
         WinDef(Vec<WinDefSeg>),
         PalDef(PalDefSeg),
         ObjDef(ObjDefSeg),
+        End(EndSeg),
     }
 
     pub enum CompState {
@@ -134,6 +135,8 @@ mod pgs {
         data: Vec<u8>,
     }
 
+    pub struct EndSeg { }
+
     pub trait ReadExt {
         fn read_seg(&mut self) -> SegResult<Seg>;
     }
@@ -153,7 +156,7 @@ mod pgs {
                 0x15 => SegBody::ObjDef(parse_ods(self)?),
                 0x16 => SegBody::PresComp(parse_pcs(self)?),
                 0x17 => SegBody::WinDef(parse_wds(self)?),
-                //0x80 =>
+                0x80 => SegBody::End(parse_es(self)?),
                 _ => return Err(SegError::UnrecognizedKind),
             };
 
@@ -320,5 +323,16 @@ mod pgs {
         input.read_exact(&mut data)?;
 
         Ok(ObjDefSeg { id, version, seq, width, height, data })
+    }
+
+    fn parse_es(input: &mut dyn Read) -> SegResult<EndSeg> {
+
+        let size = input.read_u16::<BigEndian>()? as usize;
+
+        if size == 0 {
+            Ok(EndSeg { })
+        } else {
+            Err(SegError::InvalidSegmentSize)
+        }
     }
 }
