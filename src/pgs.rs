@@ -39,6 +39,8 @@ mod pgs {
         UnrecognizedMagicNumber,
         #[error("segment has unrecognized kind")]
         UnrecognizedKind,
+        #[error("invalid segment size")]
+        InvalidSegmentSize,
         #[error("presentation control segment has unrecognized frame rate")]
         UnrecognizedFrameRate,
         #[error("presentation control segment has unrecognized composition state")]
@@ -47,8 +49,6 @@ mod pgs {
         UnrecognizedPaletteUpdateFlag,
         #[error("composition object has unrecognized cropped flag")]
         UnrecognizedCroppedFlag,
-        #[error("palette definition segment has an invalid size")]
-        IllegalPaletteDefinitionSize,
         #[error("unrecognized object definition sequence flag")]
         UnrecognizedObjectSequenceFlag,
     }
@@ -164,6 +164,7 @@ mod pgs {
     fn parse_pcs(input: &mut dyn Read) -> SegResult<PresCompSeg> {
 
         let size = input.read_u16::<BigEndian>()? as usize;
+        let mut running_size = 0usize;
         let width = input.read_u16::<BigEndian>()?;
         let height = input.read_u16::<BigEndian>()?;
 
@@ -187,6 +188,8 @@ mod pgs {
         let comp_obj_count = input.read_u8()? as usize;
         let mut comp_objs = Vec::new();
 
+        running_size += 23;
+
         for _ in 0..comp_obj_count {
 
             let obj_id = input.read_u16::<BigEndian>()?;
@@ -199,6 +202,7 @@ mod pgs {
             let x = input.read_u16::<BigEndian>()?;
             let y = input.read_u16::<BigEndian>()?;
             let crop = if cropped {
+                running_size += 8;
                 Some(
                     CompObjCrop {
                         x: input.read_u16::<BigEndian>()?,
@@ -208,6 +212,7 @@ mod pgs {
                     }
                 )
             } else {
+                running_size += 4;
                 None
             };
 
@@ -220,6 +225,10 @@ mod pgs {
                     crop,
                 }
             );
+        }
+
+        if (size != running_size) {
+            return Err(SegError::InvalidSegmentSize)
         }
 
         Ok(
@@ -241,6 +250,10 @@ mod pgs {
         let size = input.read_u16::<BigEndian>()? as usize;
         let count = input.read_u8()? as usize;
 
+        if (size != 14 + (9 * count)) {
+            return Err(SegError::InvalidSegmentSize)
+        }
+
         for _ in 0..count {
 
             let id = input.read_u8()?;
@@ -259,11 +272,11 @@ mod pgs {
 
         let size = input.read_u16::<BigEndian>()? as usize;
 
-        if size % 5 != 0 {
-            return Err(SegError::IllegalPaletteDefinitionSize)
+        if (size - 2) % 5 != 0 {
+            return Err(SegError::InvalidSegmentSize)
         }
 
-        let count = size / 5;
+        let count = (size - 2) / 5;
         let id = input.read_u8()?;
         let version = input.read_u8()?;
         let mut entries = Vec::new();
@@ -295,6 +308,11 @@ mod pgs {
             _ => return Err(SegError::UnrecognizedObjectSequenceFlag),
         };
         let data_size = input.read_u24::<BigEndian>()? as usize;
+
+        if (size != 23 + data_size) {
+            return Err(SegError::InvalidSegmentSize)
+        }
+
         let width = input.read_u16::<BigEndian>()?;
         let height = input.read_u16::<BigEndian>()?;
         let mut data = vec![0u8; data_size];
