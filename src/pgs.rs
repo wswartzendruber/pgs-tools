@@ -49,10 +49,20 @@ mod pgs {
         UnrecognizedCroppedFlag,
     }
 
+    pub enum SegBody {
+        PresComp(PresCompSeg),
+    }
+
     pub enum CompState {
         Normal,
         AcquisitionPoint,
         EpochStart,
+    }
+
+    pub struct Seg {
+        pts: u32,
+        dts: u32,
+        body: SegBody,
     }
 
     pub struct PresCompSeg {
@@ -80,16 +90,6 @@ mod pgs {
         height: u16,
     }
 
-    pub enum SegBody {
-        PresComp(PresCompSeg),
-    }
-
-    pub struct Seg {
-        pts: u32,
-        dts: u32,
-        body: SegBody,
-    }
-
     pub trait ReadExt {
         fn read_seg(&mut self) -> SegResult<Seg>;
     }
@@ -105,11 +105,11 @@ mod pgs {
             let pts = self.read_u32::<BigEndian>()?;
             let dts = self.read_u32::<BigEndian>()?;
             let body = match self.read_u8()? {
-                //0x14 => SegType::Pds,
-                //0x15 => SegType::Ods,
+                //0x14 =>
+                //0x15 =>
                 0x16 => SegBody::PresComp(parse_pcs(self)?),
-                //0x17 => SegType::Wds,
-                //0x80 => SegType::End,
+                //0x17 =>
+                //0x80 =>
                 _ => return Err(SegError::UnrecognizedKind),
             };
 
