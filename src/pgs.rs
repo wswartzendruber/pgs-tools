@@ -49,18 +49,27 @@ mod pgs {
         UnrecognizedCroppedFlag,
         #[error("palette definition segment has an invalid size")]
         IllegalPaletteDefinitionSize,
+        #[error("unrecognized object definition sequence flag")]
+        UnrecognizedObjectSequenceFlag,
     }
 
     pub enum SegBody {
         PresComp(PresCompSeg),
         WinDef(Vec<WinDefSeg>),
         PalDef(PalDefSeg),
+        ObjDef(ObjDefSeg),
     }
 
     pub enum CompState {
         Normal,
         AcquisitionPoint,
         EpochStart,
+    }
+
+    pub enum ObjSeq {
+        Last,
+        First,
+        Both,
     }
 
     pub struct Seg {
@@ -116,6 +125,15 @@ mod pgs {
         alpha: u8,
     }
 
+    pub struct ObjDefSeg {
+        id: u16,
+        version: u8,
+        seq: Option<ObjSeq>,
+        width: u16,
+        height: u16,
+        data: Vec<u8>,
+    }
+
     pub trait ReadExt {
         fn read_seg(&mut self) -> SegResult<Seg>;
     }
@@ -132,7 +150,7 @@ mod pgs {
             let dts = self.read_u32::<BigEndian>()?;
             let body = match self.read_u8()? {
                 0x14 => SegBody::PalDef(parse_pds(self)?),
-                //0x15 =>
+                0x15 => SegBody::ObjDef(parse_ods(self)?),
                 0x16 => SegBody::PresComp(parse_pcs(self)?),
                 0x17 => SegBody::WinDef(parse_wds(self)?),
                 //0x80 =>
@@ -262,5 +280,27 @@ mod pgs {
         }
 
         Ok(PalDefSeg { id, version, entries })
+    }
+
+    fn parse_ods(input: &mut dyn Read) -> SegResult<ObjDefSeg> {
+
+        let size = input.read_u16::<BigEndian>()? as usize;
+        let id = input.read_u16::<BigEndian>()?;
+        let version = input.read_u8()?;
+        let seq = match input.read_u8()? {
+            0x00 => None,
+            0x40 => Some(ObjSeq::Last),
+            0x80 => Some(ObjSeq::First),
+            0xC0 => Some(ObjSeq::Both),
+            _ => return Err(SegError::UnrecognizedObjectSequenceFlag),
+        };
+        let data_size = input.read_u24::<BigEndian>()? as usize;
+        let width = input.read_u16::<BigEndian>()?;
+        let height = input.read_u16::<BigEndian>()?;
+        let mut data = vec![0u8; data_size];
+
+        input.read_exact(&mut data)?;
+
+        Ok(ObjDefSeg { id, version, seq, width, height, data })
     }
 }
