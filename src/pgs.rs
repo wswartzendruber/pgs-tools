@@ -47,11 +47,14 @@ mod pgs {
         UnrecognizedPaletteUpdateFlag,
         #[error("composition object has unrecognized cropped flag")]
         UnrecognizedCroppedFlag,
+        #[error("palette definition segment has an invalid size")]
+        IllegalPaletteDefinitionSize,
     }
 
     pub enum SegBody {
         PresComp(PresCompSeg),
         WinDef(Vec<WinDefSeg>),
+        PalDef(PalDefSeg),
     }
 
     pub enum CompState {
@@ -99,6 +102,20 @@ mod pgs {
         height: u16,
     }
 
+    pub struct PalDefSeg {
+        id: u8,
+        version: u8,
+        entries: Vec<PalEntry>,
+    }
+
+    pub struct PalEntry {
+        id: u8,
+        y: u8,
+        cr: u8,
+        cb: u8,
+        alpha: u8,
+    }
+
     pub trait ReadExt {
         fn read_seg(&mut self) -> SegResult<Seg>;
     }
@@ -114,7 +131,7 @@ mod pgs {
             let pts = self.read_u32::<BigEndian>()?;
             let dts = self.read_u32::<BigEndian>()?;
             let body = match self.read_u8()? {
-                //0x14 =>
+                0x14 => SegBody::PalDef(parse_pds(self)?),
                 //0x15 =>
                 0x16 => SegBody::PresComp(parse_pcs(self)?),
                 0x17 => SegBody::WinDef(parse_wds(self)?),
@@ -218,5 +235,32 @@ mod pgs {
         }
 
         Ok(return_value)
+    }
+
+    fn parse_pds(input: &mut dyn Read) -> SegResult<PalDefSeg> {
+
+        let size = input.read_u16::<BigEndian>()? as usize;
+
+        if size % 5 != 0 {
+            return Err(SegError::IllegalPaletteDefinitionSize)
+        }
+
+        let count = size / 5;
+        let id = input.read_u8()?;
+        let version = input.read_u8()?;
+        let mut entries = Vec::new();
+
+        for _ in 0..count {
+
+            let id = input.read_u8()?;
+            let y = input.read_u8()?;
+            let cr = input.read_u8()?;
+            let cb = input.read_u8()?;
+            let alpha = input.read_u8()?;
+
+            entries.push(PalEntry { id, y, cr, cb, alpha });
+        }
+
+        Ok(PalDefSeg { id, version, entries })
     }
 }
