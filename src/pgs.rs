@@ -230,7 +230,7 @@ mod pgs {
             );
         }
 
-        if (size != running_size) {
+        if size != running_size {
             return Err(SegError::InvalidSegmentSize)
         }
 
@@ -253,7 +253,7 @@ mod pgs {
         let size = input.read_u16::<BigEndian>()? as usize;
         let count = input.read_u8()? as usize;
 
-        if (size != 14 + (9 * count)) {
+        if size != 14 + (9 * count) {
             return Err(SegError::InvalidSegmentSize)
         }
 
@@ -312,7 +312,7 @@ mod pgs {
         };
         let data_size = input.read_u24::<BigEndian>()? as usize;
 
-        if (size != 23 + data_size) {
+        if size != 23 + data_size {
             return Err(SegError::InvalidSegmentSize)
         }
 
