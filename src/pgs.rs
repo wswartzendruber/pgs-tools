@@ -17,8 +17,17 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ * WARNING: This code contains some disgusting hacks. This has been done because I have
+ *          discovered that not all PGS bitstreams are compliant with what the patent states.
+ *          The U.S. release of Final Fantasy VII: Advent Children Complete is particularly bad
+ *          in this regard. So the parsing logic is written from the standpoint that the PGS
+ *          bitstream has been obfuscated on purpose to make reading difficult.
+ */
+
 use std::{
-    io::{Error as IoError, Read},
+    cmp::min,
+    io::{Cursor, Error as IoError, Read},
     result::Result,
 };
 use byteorder::{BigEndian, ReadBytesExt};
@@ -29,7 +38,7 @@ pub type SegResult<T> = Result<T, SegError>;
 #[derive(ThisError, Debug)]
 pub enum SegError {
     #[error("segment IO error")]
-    PrematureEof {
+    IoError {
         #[from]
         source: IoError,
     },
@@ -37,8 +46,6 @@ pub enum SegError {
     UnrecognizedMagicNumber,
     #[error("segment has unrecognized kind")]
     UnrecognizedKind,
-    #[error("invalid segment size")]
-    InvalidSegmentSize,
     #[error("presentation control segment has unrecognized frame rate")]
     UnrecognizedFrameRate,
     #[error("presentation control segment has unrecognized composition state")]
@@ -72,74 +79,74 @@ pub enum ObjSeq {
 }
 
 pub struct Seg {
-    pts: u32,
-    dts: u32,
-    body: SegBody,
+    pub pts: u32,
+    pub dts: u32,
+    pub body: SegBody,
 }
 
 pub struct PresCompSeg {
-    width: u16,
-    height: u16,
-    comp_num: u16,
-    comp_state: CompState,
-    pal_update: bool,
-    pal_id: u8,
-    comp_objs: Vec<CompObj>,
+    pub width: u16,
+    pub height: u16,
+    pub comp_num: u16,
+    pub comp_state: CompState,
+    pub pal_update: bool,
+    pub pal_id: u8,
+    pub comp_objs: Vec<CompObj>,
 }
 
 pub struct CompObj {
-    obj_id: u16,
-    win_id: u8,
-    x: u16,
-    y: u16,
-    crop: Option<CompObjCrop>,
+    pub obj_id: u16,
+    pub win_id: u8,
+    pub x: u16,
+    pub y: u16,
+    pub crop: Option<CompObjCrop>,
 }
 
 pub struct CompObjCrop {
-    x: u16,
-    y: u16,
-    width: u16,
-    height: u16,
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    pub height: u16,
 }
 
 pub struct WinDefSeg {
-    id: u8,
-    x: u16,
-    y: u16,
-    width: u16,
-    height: u16,
+    pub id: u8,
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    pub height: u16,
 }
 
 pub struct PalDefSeg {
-    id: u8,
-    version: u8,
-    entries: Vec<PalEntry>,
+    pub id: u8,
+    pub version: u8,
+    pub entries: Vec<PalEntry>,
 }
 
 pub struct PalEntry {
-    id: u8,
-    y: u8,
-    cr: u8,
-    cb: u8,
-    alpha: u8,
+    pub id: u8,
+    pub y: u8,
+    pub cr: u8,
+    pub cb: u8,
+    pub alpha: u8,
 }
 
 pub struct ObjDefSeg {
-    id: u16,
-    version: u8,
-    seq: Option<ObjSeq>,
-    width: u16,
-    height: u16,
-    data: Vec<u8>,
+    pub id: u16,
+    pub version: u8,
+    pub seq: Option<ObjSeq>,
+    pub width: u16,
+    pub height: u16,
+    pub data: Vec<u8>,
 }
 
 pub struct EndSeg { }
 
-pub trait ReadExt {
+pub trait ReadSegExt {
     fn read_seg(&mut self) -> SegResult<Seg>;
 }
 
-impl ReadExt for dyn Read {
+impl<T> ReadSegExt for T where T: Read  {
 
     fn read_seg(&mut self) -> SegResult<Seg> {
 
@@ -149,12 +156,18 @@ impl ReadExt for dyn Read {
 
         let pts = self.read_u32::<BigEndian>()?;
         let dts = self.read_u32::<BigEndian>()?;
-        let body = match self.read_u8()? {
-            0x14 => SegBody::PalDef(parse_pds(self)?),
-            0x15 => SegBody::ObjDef(parse_ods(self)?),
-            0x16 => SegBody::PresComp(parse_pcs(self)?),
-            0x17 => SegBody::WinDef(parse_wds(self)?),
-            0x80 => SegBody::End(parse_es(self)?),
+        let kind = self.read_u8()?;
+        let size = self.read_u16::<BigEndian>()? as usize;
+
+        let mut payload = vec![0u8; size];
+        self.read_exact(&mut payload)?;
+
+        let body = match kind {
+            0x14 => SegBody::PalDef(parse_pds(&payload)?),
+            0x15 => SegBody::ObjDef(parse_ods(&payload)?),
+            0x16 => SegBody::PresComp(parse_pcs(&payload)?),
+            0x17 => SegBody::WinDef(parse_wds(&payload)?),
+            0x80 => SegBody::End(EndSeg { }),
             _ => return Err(SegError::UnrecognizedKind),
         };
 
@@ -162,16 +175,15 @@ impl ReadExt for dyn Read {
     }
 }
 
-fn parse_pcs(input: &mut dyn Read) -> SegResult<PresCompSeg> {
+fn parse_pcs(payload: &[u8]) -> SegResult<PresCompSeg> {
 
-    let size = input.read_u16::<BigEndian>()? as usize;
-    let mut running_size = 0usize;
+    let mut pos = 11;
+    let mut input = Cursor::new(payload);
     let width = input.read_u16::<BigEndian>()?;
     let height = input.read_u16::<BigEndian>()?;
 
-    if input.read_u8()? != 0x10 {
-        return Err(SegError::UnrecognizedFrameRate)
-    }
+    // We ignore the frame rate; it could be full of crap.
+    input.read_u8()?;
 
     let comp_num = input.read_u16::<BigEndian>()?;
     let comp_state = match input.read_u8()? {
@@ -189,8 +201,6 @@ fn parse_pcs(input: &mut dyn Read) -> SegResult<PresCompSeg> {
     let comp_obj_count = input.read_u8()? as usize;
     let mut comp_objs = Vec::new();
 
-    running_size += 23;
-
     for _ in 0..comp_obj_count {
 
         let obj_id = input.read_u16::<BigEndian>()?;
@@ -202,8 +212,8 @@ fn parse_pcs(input: &mut dyn Read) -> SegResult<PresCompSeg> {
         };
         let x = input.read_u16::<BigEndian>()?;
         let y = input.read_u16::<BigEndian>()?;
-        let crop = if cropped {
-            running_size += 8;
+        let crop = if cropped && payload.len() - pos >= 16 {
+            pos += 16;
             Some(
                 CompObjCrop {
                     x: input.read_u16::<BigEndian>()?,
@@ -213,7 +223,7 @@ fn parse_pcs(input: &mut dyn Read) -> SegResult<PresCompSeg> {
                 }
             )
         } else {
-            running_size += 4;
+            pos += 8;
             None
         };
 
@@ -226,10 +236,6 @@ fn parse_pcs(input: &mut dyn Read) -> SegResult<PresCompSeg> {
                 crop,
             }
         );
-    }
-
-    if size != running_size {
-        return Err(SegError::InvalidSegmentSize)
     }
 
     Ok(
@@ -245,15 +251,11 @@ fn parse_pcs(input: &mut dyn Read) -> SegResult<PresCompSeg> {
     )
 }
 
-fn parse_wds(input: &mut dyn Read) -> SegResult<Vec<WinDefSeg>> {
+fn parse_wds(payload: &[u8]) -> SegResult<Vec<WinDefSeg>> {
 
+    let mut input = Cursor::new(payload);
     let mut return_value = Vec::new();
-    let size = input.read_u16::<BigEndian>()? as usize;
     let count = input.read_u8()? as usize;
-
-    if size != 14 + (9 * count) {
-        return Err(SegError::InvalidSegmentSize)
-    }
 
     for _ in 0..count {
 
@@ -269,15 +271,10 @@ fn parse_wds(input: &mut dyn Read) -> SegResult<Vec<WinDefSeg>> {
     Ok(return_value)
 }
 
-fn parse_pds(input: &mut dyn Read) -> SegResult<PalDefSeg> {
+fn parse_pds(payload: &[u8]) -> SegResult<PalDefSeg> {
 
-    let size = input.read_u16::<BigEndian>()? as usize;
-
-    if (size - 2) % 5 != 0 {
-        return Err(SegError::InvalidSegmentSize)
-    }
-
-    let count = (size - 2) / 5;
+    let mut input = Cursor::new(payload);
+    let count = (payload.len() - 2) / 5;
     let id = input.read_u8()?;
     let version = input.read_u8()?;
     let mut entries = Vec::new();
@@ -296,9 +293,9 @@ fn parse_pds(input: &mut dyn Read) -> SegResult<PalDefSeg> {
     Ok(PalDefSeg { id, version, entries })
 }
 
-fn parse_ods(input: &mut dyn Read) -> SegResult<ObjDefSeg> {
+fn parse_ods(payload: &[u8]) -> SegResult<ObjDefSeg> {
 
-    let size = input.read_u16::<BigEndian>()? as usize;
+    let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
     let seq = match input.read_u8()? {
@@ -309,27 +306,11 @@ fn parse_ods(input: &mut dyn Read) -> SegResult<ObjDefSeg> {
         _ => return Err(SegError::UnrecognizedObjectSequenceFlag),
     };
     let data_size = input.read_u24::<BigEndian>()? as usize;
-
-    if size != 23 + data_size {
-        return Err(SegError::InvalidSegmentSize)
-    }
-
     let width = input.read_u16::<BigEndian>()?;
     let height = input.read_u16::<BigEndian>()?;
-    let mut data = vec![0u8; data_size];
+    let mut data = vec![0u8; min(data_size, payload.len() - 11)];
 
     input.read_exact(&mut data)?;
 
     Ok(ObjDefSeg { id, version, seq, width, height, data })
-}
-
-fn parse_es(input: &mut dyn Read) -> SegResult<EndSeg> {
-
-    let size = input.read_u16::<BigEndian>()? as usize;
-
-    if size == 0 {
-        Ok(EndSeg { })
-    } else {
-        Err(SegError::InvalidSegmentSize)
-    }
 }
