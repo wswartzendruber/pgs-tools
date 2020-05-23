@@ -46,8 +46,6 @@ pub enum SegError {
     UnrecognizedMagicNumber,
     #[error("segment has unrecognized kind")]
     UnrecognizedKind,
-    #[error("presentation control segment has unrecognized frame rate")]
-    UnrecognizedFrameRate,
     #[error("presentation control segment has unrecognized composition state")]
     UnrecognizedCompositionState,
     #[error("presentation control segment has unrecognized palette update flag")]
@@ -202,40 +200,44 @@ fn parse_pcs(payload: &[u8]) -> SegResult<PresCompSeg> {
     let mut comp_objs = Vec::new();
 
     for _ in 0..comp_obj_count {
+        if payload.len() - pos >= 8 {
 
-        let obj_id = input.read_u16::<BigEndian>()?;
-        let win_id = input.read_u8()?;
-        let cropped = match input.read_u8()? {
-            0x40 => true,
-            0x00 => false,
-            _ => return Err(SegError::UnrecognizedCroppedFlag),
-        };
-        let x = input.read_u16::<BigEndian>()?;
-        let y = input.read_u16::<BigEndian>()?;
-        let crop = if cropped && payload.len() - pos >= 16 {
-            pos += 16;
-            Some(
-                CompObjCrop {
-                    x: input.read_u16::<BigEndian>()?,
-                    y: input.read_u16::<BigEndian>()?,
-                    width: input.read_u16::<BigEndian>()?,
-                    height: input.read_u16::<BigEndian>()?,
-                }
-            )
-        } else {
+            let obj_id = input.read_u16::<BigEndian>()?;
+            let win_id = input.read_u8()?;
+            let cropped = match input.read_u8()? {
+                0x40 => true,
+                0x00 => false,
+                _ => return Err(SegError::UnrecognizedCroppedFlag),
+            };
+            let x = input.read_u16::<BigEndian>()?;
+            let y = input.read_u16::<BigEndian>()?;
+
             pos += 8;
-            None
-        };
 
-        comp_objs.push(
-            CompObj {
-                obj_id,
-                win_id,
-                x,
-                y,
-                crop,
-            }
-        );
+            let crop = if cropped && payload.len() - pos >= 8 {
+                pos += 8;
+                Some(
+                    CompObjCrop {
+                        x: input.read_u16::<BigEndian>()?,
+                        y: input.read_u16::<BigEndian>()?,
+                        width: input.read_u16::<BigEndian>()?,
+                        height: input.read_u16::<BigEndian>()?,
+                    }
+                )
+            } else {
+                None
+            };
+
+            comp_objs.push(
+                CompObj {
+                    obj_id,
+                    win_id,
+                    x,
+                    y,
+                    crop,
+                }
+            );
+        }
     }
 
     Ok(
@@ -255,7 +257,7 @@ fn parse_wds(payload: &[u8]) -> SegResult<Vec<WinDefSeg>> {
 
     let mut input = Cursor::new(payload);
     let mut return_value = Vec::new();
-    let count = input.read_u8()? as usize;
+    let count = min(input.read_u8()? as usize, (payload.len() - 1) % 9);
 
     for _ in 0..count {
 
