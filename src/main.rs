@@ -17,8 +17,24 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-mod pgs;
+pub mod pgs;
 
-fn main() {
-    println!("Hello, world!");
+use std::fs::File;
+use std::env;
+use pgs::parse::*;
+
+fn main()  {
+
+    let args: Vec<String> = env::args().collect();
+    let mut file = File::open(&args[1]).expect("could not open input file");
+
+    loop {
+        match file.read_seg().unwrap().body {
+            SegBody::PresComp(_) => println!("PresentationCompositionSegment"),
+            SegBody::WinDef(_) => println!("WindowDefinitionSegment"),
+            SegBody::PalDef(_) => println!("PaletteDefinitionSegment"),
+            SegBody::ObjDef(_) => println!("ObjectDefinitionSegment"),
+            SegBody::End(_) => println!("EndSegment"),
+        }
+    }
 }
