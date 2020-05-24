@@ -47,13 +47,13 @@ pub enum SegError {
     #[error("segment has unrecognized kind")]
     UnrecognizedKind,
     #[error("presentation control segment has unrecognized composition state")]
-    UnrecognizedCompositionState,
+    UnrecognizedCompState,
     #[error("presentation control segment has unrecognized palette update flag")]
-    UnrecognizedPaletteUpdateFlag,
+    UnrecognizedPalUpdateFlag,
     #[error("composition object has unrecognized cropped flag")]
     UnrecognizedCroppedFlag,
     #[error("unrecognized object definition sequence flag")]
-    UnrecognizedObjectSequenceFlag,
+    UnrecognizedObjSeqFlag,
 }
 
 pub enum SegBody {
@@ -188,12 +188,12 @@ fn parse_pcs(payload: &[u8]) -> SegResult<PresCompSeg> {
         0x00 => CompState::Normal,
         0x40 => CompState::AcquisitionPoint,
         0x80 => CompState::EpochStart,
-        _ => return Err(SegError::UnrecognizedCompositionState),
+        _ => return Err(SegError::UnrecognizedCompState),
     };
     let pal_update = match input.read_u8()? {
         0x00 => false,
         0x80 => true,
-        _ => return Err(SegError::UnrecognizedPaletteUpdateFlag),
+        _ => return Err(SegError::UnrecognizedPalUpdateFlag),
     };
     let pal_id = input.read_u8()?;
     let comp_obj_count = input.read_u8()? as usize;
@@ -305,7 +305,7 @@ fn parse_ods(payload: &[u8]) -> SegResult<ObjDefSeg> {
         0x40 => Some(ObjSeq::Last),
         0x80 => Some(ObjSeq::First),
         0xC0 => Some(ObjSeq::Both),
-        _ => return Err(SegError::UnrecognizedObjectSequenceFlag),
+        _ => return Err(SegError::UnrecognizedObjSeqFlag),
     };
     let data_size = input.read_u24::<BigEndian>()? as usize;
     let width = input.read_u16::<BigEndian>()?;
