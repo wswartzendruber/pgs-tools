@@ -40,6 +40,8 @@ pub enum SegWriteError {
     TooManyCompObjs,
     #[error("too many window definition segments")]
     TooManyWinDefSegs,
+    #[error("too many palette entries")]
+    TooManyPalEntries,
 }
 
 pub trait WriteSegExt {
@@ -77,8 +79,8 @@ impl<T> WriteSegExt for T where T: Write {
             },
         };
 
-        self.write_u16::<BigEndian>(payload.len() as u16);
-        self.write_all(&payload);
+        self.write_u16::<BigEndian>(payload.len() as u16)?;
+        self.write_all(&payload)?;
 
         Ok(())
     }
@@ -168,7 +170,20 @@ fn write_wds(wds: &[WinDefSeg]) -> SegWriteResult<Vec<u8>> {
 
 fn write_pds(pds: &PalDefSeg) -> SegWriteResult<Vec<u8>> {
 
-    Ok(vec![])
+    let mut payload = vec![];
+
+    payload.write_u8(pds.id)?;
+    payload.write_u8(pds.version)?;
+
+    for entry in &pds.entries {
+        payload.write_u8(entry.id)?;
+        payload.write_u8(entry.y)?;
+        payload.write_u8(entry.cr)?;
+        payload.write_u8(entry.cb)?;
+        payload.write_u8(entry.alpha)?;
+    }
+
+    Ok(payload)
 }
 
 fn write_ods(ods: &ObjDefSeg) -> SegWriteResult<Vec<u8>> {
