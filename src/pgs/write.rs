@@ -38,6 +38,8 @@ pub enum SegWriteError {
     },
     #[error("too many composition objects in presentation composition segment")]
     TooManyCompObjs,
+    #[error("too many window definition segments")]
+    TooManyWinDefSegs,
 }
 
 pub trait WriteSegExt {
@@ -145,7 +147,23 @@ fn write_pcs(pcs: &PresCompSeg) -> SegWriteResult<Vec<u8>> {
 
 fn write_wds(wds: &[WinDefSeg]) -> SegWriteResult<Vec<u8>> {
 
-    Ok(vec![])
+    let mut payload = vec![];
+
+    if wds.len() <= 255 {
+        payload.write_u8(wds.len() as u8)?;
+    } else {
+        return Err(SegWriteError::TooManyWinDefSegs)
+    }
+
+    for win in wds {
+        payload.write_u8(win.id)?;
+        payload.write_u16::<BigEndian>(win.x)?;
+        payload.write_u16::<BigEndian>(win.y)?;
+        payload.write_u16::<BigEndian>(win.width)?;
+        payload.write_u16::<BigEndian>(win.height)?;
+    }
+
+    Ok(payload)
 }
 
 fn write_pds(pds: &PalDefSeg) -> SegWriteResult<Vec<u8>> {
