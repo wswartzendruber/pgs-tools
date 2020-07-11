@@ -7,7 +7,7 @@
 #
 
 [package]
-name = "subscale"
+name = "pgsscale"
 version = "0.1.0"
 authors = ["William Swartzendruber <wswartzendruber@gmail.com>"]
 edition = "2018"
