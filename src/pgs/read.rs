@@ -49,9 +49,9 @@ pub enum SegReadError {
     UnrecognizedMagicNumber,
     #[error("segment has unrecognized kind")]
     UnrecognizedKind,
-    #[error("presentation control segment has unrecognized composition state")]
+    #[error("presentation composition segment has unrecognized composition state")]
     UnrecognizedCompState,
-    #[error("presentation control segment has unrecognized palette update flag")]
+    #[error("presentation composition segment has unrecognized palette update flag")]
     UnrecognizedPalUpdateFlag,
     #[error("composition object has unrecognized cropped flag")]
     UnrecognizedCroppedFlag,
