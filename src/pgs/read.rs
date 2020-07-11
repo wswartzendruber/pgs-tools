@@ -31,7 +31,6 @@ use super::{
 use std::{
     cmp::min,
     io::{Cursor, Error as IoError, Read},
-    result::Result,
 };
 use byteorder::{BigEndian, ReadBytesExt};
 use thiserror::Error as ThisError;
