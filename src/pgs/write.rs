@@ -21,18 +21,32 @@ use super::{
     WinDefSeg,
 };
 use std::io::{
-    Result as IoResult,
+    Error as IoError,
     Write,
 };
 use byteorder::{BigEndian, WriteBytesExt};
+use thiserror::Error as ThisError;
+
+pub type SegWriteResult<T> = Result<T, SegWriteError>;
+
+#[derive(ThisError, Debug)]
+pub enum SegWriteError {
+    #[error("segment IO error")]
+    IoError {
+        #[from]
+        source: IoError,
+    },
+    #[error("too many composition objects in presentation composition segment")]
+    TooManyCompObjs,
+}
 
 pub trait WriteSegExt {
-    fn write_seg(&mut self, seg: &Seg) -> IoResult<()>;
+    fn write_seg(&mut self, seg: &Seg) -> SegWriteResult<()>;
 }
 
 impl<T> WriteSegExt for T where T: Write {
 
-    fn write_seg(&mut self, seg: &Seg) -> IoResult<()> {
+    fn write_seg(&mut self, seg: &Seg) -> SegWriteResult<()> {
 
         self.write_u16::<BigEndian>(0x5047)?;
         self.write_u32::<BigEndian>(seg.pts)?;
@@ -68,22 +82,78 @@ impl<T> WriteSegExt for T where T: Write {
     }
 }
 
-fn write_pcs(pcs: &PresCompSeg) -> IoResult<Vec<u8>> {
+fn write_pcs(pcs: &PresCompSeg) -> SegWriteResult<Vec<u8>> {
+
+    let mut payload = vec![];
+
+    payload.write_u16::<BigEndian>(pcs.width)?;
+    payload.write_u16::<BigEndian>(pcs.height)?;
+    payload.write_u8(0x10)?;
+    payload.write_u16::<BigEndian>(pcs.comp_num)?;
+    payload.write_u8(
+        match pcs.comp_state {
+            CompState::Normal => 0x00,
+            CompState::AcquisitionPoint => 0x40,
+            CompState::EpochStart => 0x80,
+        }
+    )?;
+    payload.write_u8(
+        if pcs.pal_update {
+            0x80
+        } else {
+            0x00
+        }
+    )?;
+    payload.write_u8(pcs.pal_id)?;
+
+    if pcs.comp_objs.len() <= 255 {
+        payload.write_u8(pcs.comp_objs.len() as u8)?;
+    } else {
+        return Err(SegWriteError::TooManyCompObjs)
+    }
+
+    for comp_obj in &pcs.comp_objs {
+
+        payload.write_u16::<BigEndian>(comp_obj.obj_id)?;
+        payload.write_u8(comp_obj.win_id)?;
+
+        let cropped = comp_obj.crop.is_some();
+
+        payload.write_u8(
+            if cropped {
+                0x40
+            } else {
+                0x00
+            }
+        )?;
+        payload.write_u16::<BigEndian>(comp_obj.x)?;
+        payload.write_u16::<BigEndian>(comp_obj.y)?;
+
+        if cropped {
+
+            let crop = comp_obj.crop.as_ref().unwrap();
+
+            payload.write_u16::<BigEndian>(crop.x)?;
+            payload.write_u16::<BigEndian>(crop.y)?;
+            payload.write_u16::<BigEndian>(crop.width)?;
+            payload.write_u16::<BigEndian>(crop.height)?;
+        }
+    }
+
+    Ok(payload)
+}
+
+fn write_wds(wds: &[WinDefSeg]) -> SegWriteResult<Vec<u8>> {
 
     Ok(vec![])
 }
 
-fn write_wds(wds: &[WinDefSeg]) -> IoResult<Vec<u8>> {
+fn write_pds(pds: &PalDefSeg) -> SegWriteResult<Vec<u8>> {
 
     Ok(vec![])
 }
 
-fn write_pds(pds: &PalDefSeg) -> IoResult<Vec<u8>> {
-
-    Ok(vec![])
-}
-
-fn write_ods(ods: &ObjDefSeg) -> IoResult<Vec<u8>> {
+fn write_ods(ods: &ObjDefSeg) -> SegWriteResult<Vec<u8>> {
 
     Ok(vec![])
 }
