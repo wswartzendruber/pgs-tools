@@ -90,7 +90,7 @@ fn write_pcs(pcs: &PresCompSeg) -> SegWriteResult<Vec<u8>> {
 
     payload.write_u16::<BigEndian>(pcs.width)?;
     payload.write_u16::<BigEndian>(pcs.height)?;
-    payload.write_u8(0x10)?;
+    payload.write_u8(pcs.frame_rate)?;
     payload.write_u16::<BigEndian>(pcs.comp_num)?;
     payload.write_u8(
         match pcs.comp_state {
@@ -201,8 +201,9 @@ fn write_ods(ods: &ObjDefSeg) -> SegWriteResult<Vec<u8>> {
         }
     )?;
 
-    if ods.data.len() <= 16_777_216 {
-        payload.write_u24::<BigEndian>(ods.data.len() as u32)?;
+    // I have no idea why PGS streams record +4 bytes for the object data size, but they do.
+    if ods.data.len() <= 16_777_212 {
+        payload.write_u24::<BigEndian>((ods.data.len() + 4) as u32)?;
     } else {
         return Err(SegWriteError::ObjDataTooLarge)
     }

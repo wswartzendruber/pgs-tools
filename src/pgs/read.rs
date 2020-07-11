@@ -6,14 +6,6 @@
  * https://mozilla.org/MPL/2.0/.
  */
 
-/*
- * WARNING: This code contains some disgusting hacks. This has been done because I have
- *          discovered that not all PGS bitstreams are compliant with what the patent states.
- *          The U.S. release of Final Fantasy VII: Advent Children Complete is particularly bad
- *          in this regard. So the parsing logic is written from the standpoint that the PGS
- *          bitstream has been obfuscated on purpose to make reading difficult.
- */
-
 use super::{
     CompObj,
     CompObjCrop,
@@ -97,9 +89,7 @@ fn parse_pcs(payload: &[u8]) -> SegReadResult<PresCompSeg> {
     let mut input = Cursor::new(payload);
     let width = input.read_u16::<BigEndian>()?;
     let height = input.read_u16::<BigEndian>()?;
-
-    // We ignore the frame rate; it could be full of crap.
-    input.read_u8()?;
+    let frame_rate = input.read_u8()?;
 
     let comp_num = input.read_u16::<BigEndian>()?;
     let comp_state = match input.read_u8()? {
@@ -132,6 +122,8 @@ fn parse_pcs(payload: &[u8]) -> SegReadResult<PresCompSeg> {
 
             pos += 8;
 
+            // For some reason, the U.S. release of Final Fantasy VII: Advent Children Complete
+            // declares that the object is cropped, but then the segment's payload ends.
             let crop = if cropped && payload.len() - pos >= 8 {
                 pos += 8;
                 Some(
@@ -162,6 +154,7 @@ fn parse_pcs(payload: &[u8]) -> SegReadResult<PresCompSeg> {
         PresCompSeg {
             width,
             height,
+            frame_rate,
             comp_num,
             comp_state,
             pal_update,
@@ -175,7 +168,7 @@ fn parse_wds(payload: &[u8]) -> SegReadResult<Vec<WinDefSeg>> {
 
     let mut input = Cursor::new(payload);
     let mut return_value = Vec::new();
-    let count = min(input.read_u8()? as usize, (payload.len() - 1) % 9);
+    let count = input.read_u8()?;
 
     for _ in 0..count {
 
@@ -228,7 +221,7 @@ fn parse_ods(payload: &[u8]) -> SegReadResult<ObjDefSeg> {
     let data_size = input.read_u24::<BigEndian>()? as usize;
     let width = input.read_u16::<BigEndian>()?;
     let height = input.read_u16::<BigEndian>()?;
-    let mut data = vec![0u8; min(data_size, payload.len() - 11)];
+    let mut data = vec![0u8; (data_size - 4).max(0)];
 
     input.read_exact(&mut data)?;
 

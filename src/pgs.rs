@@ -38,6 +38,7 @@ pub struct Seg {
 pub struct PresCompSeg {
     pub width: u16,
     pub height: u16,
+    pub frame_rate: u8,
     pub comp_num: u16,
     pub comp_state: CompState,
     pub pal_update: bool,
