@@ -7,14 +7,10 @@
  */
 
 use super::{
-    CompObj,
-    CompObjCrop,
     CompState,
-    EndSeg,
     ObjDefSeg,
     ObjSeq,
     PalDefSeg,
-    PalEntry,
     PresCompSeg,
     Seg,
     SegBody,
@@ -42,6 +38,8 @@ pub enum SegWriteError {
     TooManyWinDefSegs,
     #[error("too many palette entries")]
     TooManyPalEntries,
+    #[error("object data too large")]
+    ObjDataTooLarge,
 }
 
 pub trait WriteSegExt {
@@ -188,5 +186,30 @@ fn write_pds(pds: &PalDefSeg) -> SegWriteResult<Vec<u8>> {
 
 fn write_ods(ods: &ObjDefSeg) -> SegWriteResult<Vec<u8>> {
 
-    Ok(vec![])
+    let mut payload = vec![];
+
+    payload.write_u16::<BigEndian>(ods.id)?;
+    payload.write_u8(ods.version)?;
+    payload.write_u8(
+        match &ods.seq {
+            Some(seq) => match seq {
+                ObjSeq::Last => 0x40,
+                ObjSeq::First => 0x80,
+                ObjSeq::Both => 0xC0,
+            },
+            None => 0x00,
+        }
+    )?;
+
+    if ods.data.len() <= 16_777_216 {
+        payload.write_u24::<BigEndian>(ods.data.len() as u32)?;
+    } else {
+        return Err(SegWriteError::ObjDataTooLarge)
+    }
+
+    payload.write_u16::<BigEndian>(ods.width)?;
+    payload.write_u16::<BigEndian>(ods.height)?;
+    payload.write_all(&ods.data)?;
+
+    Ok(payload)
 }
