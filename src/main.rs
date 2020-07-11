@@ -10,7 +10,8 @@ pub mod pgs;
 
 use std::fs::File;
 use std::env;
-use pgs::parse::*;
+use pgs::*;
+use pgs::read::*;
 
 fn main()  {
 
@@ -19,7 +20,11 @@ fn main()  {
 
     loop {
         match file.read_seg().unwrap().body {
-            SegBody::PresComp(_) => println!("PresentationCompositionSegment"),
+            SegBody::PresComp(pcs) => println!(
+                "PresentationCompositionSegment: {}x{}",
+                pcs.width,
+                pcs.height,
+            ),
             SegBody::WinDef(_) => println!("WindowDefinitionSegment"),
             SegBody::PalDef(_) => println!("PaletteDefinitionSegment"),
             SegBody::ObjDef(_) => println!("ObjectDefinitionSegment"),

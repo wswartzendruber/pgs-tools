@@ -14,6 +14,20 @@
  *          bitstream has been obfuscated on purpose to make reading difficult.
  */
 
+use super::{
+    CompObj,
+    CompObjCrop,
+    CompState,
+    EndSeg,
+    ObjDefSeg,
+    ObjSeq,
+    PalDefSeg,
+    PalEntry,
+    PresCompSeg,
+    Seg,
+    SegBody,
+    WinDefSeg,
+};
 use std::{
     cmp::min,
     io::{Cursor, Error as IoError, Read},
@@ -22,10 +36,10 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use thiserror::Error as ThisError;
 
-pub type SegResult<T> = Result<T, SegError>;
+pub type SegReadResult<T> = Result<T, SegReadError>;
 
 #[derive(ThisError, Debug)]
-pub enum SegError {
+pub enum SegReadError {
     #[error("segment IO error")]
     IoError {
         #[from]
@@ -45,100 +59,16 @@ pub enum SegError {
     UnrecognizedObjSeqFlag,
 }
 
-pub enum SegBody {
-    PresComp(PresCompSeg),
-    WinDef(Vec<WinDefSeg>),
-    PalDef(PalDefSeg),
-    ObjDef(ObjDefSeg),
-    End(EndSeg),
-}
-
-pub enum CompState {
-    Normal,
-    AcquisitionPoint,
-    EpochStart,
-}
-
-pub enum ObjSeq {
-    Last,
-    First,
-    Both,
-}
-
-pub struct Seg {
-    pub pts: u32,
-    pub dts: u32,
-    pub body: SegBody,
-}
-
-pub struct PresCompSeg {
-    pub width: u16,
-    pub height: u16,
-    pub comp_num: u16,
-    pub comp_state: CompState,
-    pub pal_update: bool,
-    pub pal_id: u8,
-    pub comp_objs: Vec<CompObj>,
-}
-
-pub struct CompObj {
-    pub obj_id: u16,
-    pub win_id: u8,
-    pub x: u16,
-    pub y: u16,
-    pub crop: Option<CompObjCrop>,
-}
-
-pub struct CompObjCrop {
-    pub x: u16,
-    pub y: u16,
-    pub width: u16,
-    pub height: u16,
-}
-
-pub struct WinDefSeg {
-    pub id: u8,
-    pub x: u16,
-    pub y: u16,
-    pub width: u16,
-    pub height: u16,
-}
-
-pub struct PalDefSeg {
-    pub id: u8,
-    pub version: u8,
-    pub entries: Vec<PalEntry>,
-}
-
-pub struct PalEntry {
-    pub id: u8,
-    pub y: u8,
-    pub cr: u8,
-    pub cb: u8,
-    pub alpha: u8,
-}
-
-pub struct ObjDefSeg {
-    pub id: u16,
-    pub version: u8,
-    pub seq: Option<ObjSeq>,
-    pub width: u16,
-    pub height: u16,
-    pub data: Vec<u8>,
-}
-
-pub struct EndSeg { }
-
 pub trait ReadSegExt {
-    fn read_seg(&mut self) -> SegResult<Seg>;
+    fn read_seg(&mut self) -> SegReadResult<Seg>;
 }
 
 impl<T> ReadSegExt for T where T: Read  {
 
-    fn read_seg(&mut self) -> SegResult<Seg> {
+    fn read_seg(&mut self) -> SegReadResult<Seg> {
 
         if self.read_u16::<BigEndian>()? != 0x5047 {
-            return Err(SegError::UnrecognizedMagicNumber)
+            return Err(SegReadError::UnrecognizedMagicNumber)
         }
 
         let pts = self.read_u32::<BigEndian>()?;
@@ -155,14 +85,14 @@ impl<T> ReadSegExt for T where T: Read  {
             0x16 => SegBody::PresComp(parse_pcs(&payload)?),
             0x17 => SegBody::WinDef(parse_wds(&payload)?),
             0x80 => SegBody::End(EndSeg { }),
-            _ => return Err(SegError::UnrecognizedKind),
+            _ => return Err(SegReadError::UnrecognizedKind),
         };
 
         Ok(Seg { pts, dts, body })
     }
 }
 
-fn parse_pcs(payload: &[u8]) -> SegResult<PresCompSeg> {
+fn parse_pcs(payload: &[u8]) -> SegReadResult<PresCompSeg> {
 
     let mut pos = 11;
     let mut input = Cursor::new(payload);
@@ -177,12 +107,12 @@ fn parse_pcs(payload: &[u8]) -> SegResult<PresCompSeg> {
         0x00 => CompState::Normal,
         0x40 => CompState::AcquisitionPoint,
         0x80 => CompState::EpochStart,
-        _ => return Err(SegError::UnrecognizedCompState),
+        _ => return Err(SegReadError::UnrecognizedCompState),
     };
     let pal_update = match input.read_u8()? {
         0x00 => false,
         0x80 => true,
-        _ => return Err(SegError::UnrecognizedPalUpdateFlag),
+        _ => return Err(SegReadError::UnrecognizedPalUpdateFlag),
     };
     let pal_id = input.read_u8()?;
     let comp_obj_count = input.read_u8()? as usize;
@@ -196,7 +126,7 @@ fn parse_pcs(payload: &[u8]) -> SegResult<PresCompSeg> {
             let cropped = match input.read_u8()? {
                 0x40 => true,
                 0x00 => false,
-                _ => return Err(SegError::UnrecognizedCroppedFlag),
+                _ => return Err(SegReadError::UnrecognizedCroppedFlag),
             };
             let x = input.read_u16::<BigEndian>()?;
             let y = input.read_u16::<BigEndian>()?;
@@ -242,7 +172,7 @@ fn parse_pcs(payload: &[u8]) -> SegResult<PresCompSeg> {
     )
 }
 
-fn parse_wds(payload: &[u8]) -> SegResult<Vec<WinDefSeg>> {
+fn parse_wds(payload: &[u8]) -> SegReadResult<Vec<WinDefSeg>> {
 
     let mut input = Cursor::new(payload);
     let mut return_value = Vec::new();
@@ -262,7 +192,7 @@ fn parse_wds(payload: &[u8]) -> SegResult<Vec<WinDefSeg>> {
     Ok(return_value)
 }
 
-fn parse_pds(payload: &[u8]) -> SegResult<PalDefSeg> {
+fn parse_pds(payload: &[u8]) -> SegReadResult<PalDefSeg> {
 
     let mut input = Cursor::new(payload);
     let count = (payload.len() - 2) / 5;
@@ -284,7 +214,7 @@ fn parse_pds(payload: &[u8]) -> SegResult<PalDefSeg> {
     Ok(PalDefSeg { id, version, entries })
 }
 
-fn parse_ods(payload: &[u8]) -> SegResult<ObjDefSeg> {
+fn parse_ods(payload: &[u8]) -> SegReadResult<ObjDefSeg> {
 
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
@@ -294,7 +224,7 @@ fn parse_ods(payload: &[u8]) -> SegResult<ObjDefSeg> {
         0x40 => Some(ObjSeq::Last),
         0x80 => Some(ObjSeq::First),
         0xC0 => Some(ObjSeq::Both),
-        _ => return Err(SegError::UnrecognizedObjSeqFlag),
+        _ => return Err(SegReadError::UnrecognizedObjSeqFlag),
     };
     let data_size = input.read_u24::<BigEndian>()? as usize;
     let width = input.read_u16::<BigEndian>()?;
