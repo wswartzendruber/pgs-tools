@@ -9,6 +9,7 @@
 pub mod pgs;
 
 use pgs::{
+    SegBody,
     read::ReadSegExt,
     write::WriteSegExt,
 };
@@ -63,9 +64,12 @@ fn main()  {
     // PROCESSING
     //
 
+    let mut width;
+    let mut height;
+
     'segs: loop {
 
-        let seg = match input.read_seg() {
+        let mut seg = match input.read_seg() {
             Ok(seg) => seg,
             Err(err) => {
                 eprintln!("Could not read anymore segments: {:?}", err);
@@ -73,7 +77,32 @@ fn main()  {
             },
         };
 
-        // DO WHATEVER
+        match &mut seg.body {
+            SegBody::PresComp(pcs) => {
+                width = pcs.width;
+                height = pcs.height;
+                pcs.width = crop_width;
+                pcs.height = crop_height;
+                if crop_width > width {
+                    panic!("crop_width is greater than width={} defined by PCS.", width);
+                }
+                if crop_height > height {
+                    panic!("crop_height is greater than height={} defines by PCS.", height);
+                }
+                for comp_obj in pcs.comp_objs.iter_mut() {
+                    comp_obj.x = cropped_offset(comp_obj.x, width, crop_width);
+                    comp_obj.y = cropped_offset(comp_obj.y, height, crop_height);
+                    match &mut comp_obj.crop {
+                        Some(crop) => {
+                            crop.x = cropped_offset(crop.x, width, crop_width);
+                            crop.y = cropped_offset(crop.y, height, crop_height);
+                        },
+                        None => (),
+                    }
+                }
+            },
+            _ => ()
+        }
 
         if let Err(err) = output.write_seg(&seg) {
             panic!("Could not write frame to output stream: {:?}", err)
@@ -81,4 +110,8 @@ fn main()  {
     }
 
     output.flush().expect("Could not flush output stream.");
+}
+
+fn cropped_offset(offset: u16, size: u16, crop: u16) -> u16 {
+    offset - (size - crop) / 2
 }

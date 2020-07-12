@@ -21,7 +21,6 @@ use super::{
     WinDefSeg,
 };
 use std::{
-    cmp::min,
     io::{Cursor, Error as IoError, Read},
 };
 use byteorder::{BigEndian, ReadBytesExt};
