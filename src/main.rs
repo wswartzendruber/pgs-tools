@@ -115,12 +115,6 @@ fn main()  {
                 height = pcs.height;
                 pcs.width = crop_width;
                 pcs.height = crop_height;
-                if crop_width > width {
-                    panic!("crop_width is greater than width={} defined by PCS.", width);
-                }
-                if crop_height > height {
-                    panic!("crop_height is greater than height={} defines by PCS.", height);
-                }
                 for comp_obj in pcs.comp_objs.iter_mut() {
                     comp_obj.x = cropped_offset(comp_obj.x, width, crop_width);
                     comp_obj.y = cropped_offset(comp_obj.y, height, crop_height);
