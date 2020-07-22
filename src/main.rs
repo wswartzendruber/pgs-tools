@@ -14,30 +14,55 @@ use pgs::{
     write::WriteSegExt,
 };
 use std::{
-    env,
     fs::File,
     io::{stdin, stdout, BufReader, BufWriter, Read, Write},
-    process::exit,
 };
+use clap::{Arg, App};
 
 fn main()  {
 
-    let args: Vec<String> = env::args().collect();
+    let matches = App::new("pgsscale")
+        .version("1.0.0")
+        .author("William Swartzendruber")
+        .about("Crops PGS subtitles")
+        .arg(
+            Arg::with_name("crop_width")
+                .short("w")
+                .long("crop_width")
+                .help("the width to crop to")
+                .takes_value(true)
+                .required(true)
+        )
+        .arg(
+            Arg::with_name("crop_height")
+                .short("h")
+                .long("crop_height")
+                .help("the height to crop to")
+                .takes_value(true)
+                .required(true)
+        )
+        .arg(
+            Arg::with_name("input")
+                .short("i")
+                .long("input")
+                .help("input PGS file, or - for STDIN")
+                .takes_value(true)
+                .required(true)
+        )
+        .arg(
+            Arg::with_name("output")
+                .short("o")
+                .long("output")
+                .help("output PGS file, or - for STDIN")
+                .takes_value(true)
+                .required(true)
+        )
+        .get_matches();
 
-    if args.len() != 5 {
-        eprintln!("ERROR: Incorrect number of arguments specificed.");
-        eprintln!("USAGE: pgsscale [crop-width] [crop-height] [input] [output]");
-        eprintln!("  crop-width  - Cropping width of the video stream in pixels.");
-        eprintln!("  crop-height - Cropping height of the video stream in pixels.");
-        eprintln!("  input       - PGS input file; use - for STDIN.");
-        eprintln!("  output      - PGS output file; use - for STDOUT.");
-        exit(1);
-    }
-
-    let crop_width = args[1].parse::<u16>().expect(
+    let crop_width = matches.value_of("crop_width").unwrap().parse::<u16>().expect(
         "Invalid crop-width value, which must be a 16-bit unsigned integer."
     );
-    let crop_height = args[2].parse::<u16>().expect(
+    let crop_height = matches.value_of("crop_height").unwrap().parse::<u16>().expect(
         "Invalid crop-height value, which must be a 16-bit unsigned integer."
     );
 
@@ -45,18 +70,25 @@ fn main()  {
     // INPUT/OUTPUT
     //
 
+    let input_str = matches.value_of("input").unwrap();
+    let output_str = matches.value_of("output").unwrap();
+
     let mut input: BufReader<Box<dyn Read>> = BufReader::new(
-        if args[3] == "-" {
+        if input_str == "-" {
             Box::new(stdin())
         } else {
-            Box::new(File::open(&args[3]).expect("Could not open input file for writing."))
+            Box::new(
+                File::open(&input_str).expect("Could not open input file for writing.")
+            )
         }
     );
     let mut output: BufWriter<Box<dyn Write>> = BufWriter::new(
-        if args[4] == "-" {
+        if output_str == "-" {
             Box::new(stdout())
         } else {
-            Box::new(File::create(&args[4]).expect("Could not open output file for writing."))
+            Box::new(
+                File::create(&output_str).expect("Could not open output file for writing.")
+            )
         }
     );
 
