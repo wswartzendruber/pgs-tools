@@ -1,0 +1,23 @@
+PGSScale 0.1.0
+Scales PGS subtitles
+
+USAGE:
+    pgsscale [FLAGS] [OPTIONS] <INPUT-FILE> <OUTPUT-FILE> --crop-height <PIXELS> --crop-width <PIXELS>
+
+FLAGS:
+        --help         Prints help information
+    -p, --pq-to-hlg    Enable PQ to HLG conversion of subtitle colors
+    -V, --version      Prints version information
+
+OPTIONS:
+    -h, --crop-height <PIXELS>    Height to crop each subtitle frame to
+    -w, --crop-width <PIXELS>     Width to crop each subtitle frame to
+    -r, --ref-white <NITS>        Brightness of the video's reference white level [default: 203]
+
+ARGS:
+    <INPUT-FILE>     Input PGS file
+    <OUTPUT-FILE>    Output PGS file
+
+This utility will crop PGS subtitles found in Blu-ray discs so that they can match any cropping that has been done to
+the main video stream, thereby preventing the subtitles from appearing squished or distorted by the player. Subtitles
+from 4K UltraHD discs can optionally be tone mapped to appropriate HLG levels.
