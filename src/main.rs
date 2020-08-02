@@ -70,8 +70,8 @@ fn main() {
             can match any cropping that has been done to the main video stream, thereby \
             preventing the subtitles from appearing squished or distorted by the player.")
         .get_matches();
-    let crop_width = matches.value_of("crop_width").unwrap().parse::<u16>().unwrap();
-    let crop_height = matches.value_of("crop_height").unwrap().parse::<u16>().unwrap();
+    let crop_width = matches.value_of("crop-width").unwrap().parse::<u16>().unwrap();
+    let crop_height = matches.value_of("crop-height").unwrap().parse::<u16>().unwrap();
     let input_value = matches.value_of("input").unwrap();
     let (mut stdin_read, mut file_read);
     let mut input = BufReader::<&mut dyn Read>::new(
