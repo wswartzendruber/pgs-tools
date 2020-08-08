@@ -14,10 +14,13 @@ use pgs::{
     write::WriteSegExt,
 };
 use std::{
+    collections::HashSet,
     fs::File,
     io::{stdin, stdout, BufReader, BufWriter, Read, Write},
 };
 use clap::{crate_version, Arg, App};
+
+type Size = (u16, u16);
 
 fn main() {
 
@@ -54,6 +57,12 @@ fn main() {
                 }
             })
         )
+        .arg(Arg::with_name("max-y")
+            .long("max-y")
+            .short("m")
+            .help("Output the Y value of the brightest palette definition")
+            .takes_value(false)
+        )
         .arg(Arg::with_name("input")
             .index(1)
             .value_name("INPUT-FILE")
@@ -72,6 +81,7 @@ fn main() {
         .get_matches();
     let crop_width = matches.value_of("crop-width").unwrap().parse::<u16>().unwrap();
     let crop_height = matches.value_of("crop-height").unwrap().parse::<u16>().unwrap();
+    let show_max_y = matches.is_present("max-y");
     let input_value = matches.value_of("input").unwrap();
     let (mut stdin_read, mut file_read);
     let mut input = BufReader::<&mut dyn Read>::new(
@@ -96,14 +106,21 @@ fn main() {
             &mut file_write
         }
     );
-    let mut width;
-    let mut height;
+    let mut sizes = Vec::<Size>::new();
+    let mut size;
+    let mut y_values = HashSet::new();
 
     'segs: loop {
 
         let mut seg = match input.read_seg() {
             Ok(seg) => seg,
             Err(err) => {
+                if show_max_y {
+                    match y_values.iter().max() {
+                        Some(max_y) => println!("Maximum Y value: {}", max_y),
+                        None => println!("No Y values were encounted."),
+                    }
+                }
                 eprintln!("Could not read anymore segments: {:?}", err);
                 break 'segs
             },
@@ -111,20 +128,28 @@ fn main() {
 
         match &mut seg.body {
             SegBody::PresComp(pcs) => {
-                width = pcs.width;
-                height = pcs.height;
+                size = (pcs.width, pcs.height);
+                if !sizes.contains(&size) {
+                    println!("New resolution encountered: {}x{}", size.0, size.1);
+                    sizes.push(size);
+                }
                 pcs.width = crop_width;
                 pcs.height = crop_height;
                 for comp_obj in pcs.comp_objs.iter_mut() {
-                    comp_obj.x = cropped_offset(comp_obj.x, width, crop_width);
-                    comp_obj.y = cropped_offset(comp_obj.y, height, crop_height);
+                    comp_obj.x = cropped_offset(comp_obj.x, size.0, crop_width);
+                    comp_obj.y = cropped_offset(comp_obj.y, size.1, crop_height);
                     match &mut comp_obj.crop {
                         Some(crop) => {
-                            crop.x = cropped_offset(crop.x, width, crop_width);
-                            crop.y = cropped_offset(crop.y, height, crop_height);
+                            crop.x = cropped_offset(crop.x, size.0, crop_width);
+                            crop.y = cropped_offset(crop.y, size.1, crop_height);
                         },
                         None => (),
                     }
+                }
+            },
+            SegBody::PalDef(pds) => {
+                for entry in &pds.entries {
+                    y_values.insert(entry.y);
                 }
             },
             _ => ()
