@@ -10,13 +10,12 @@ pub mod pgs;
 
 use pgs::{
     SegBody,
-    read::ReadSegExt,
+    read::{ReadSegExt, SegReadError},
     write::WriteSegExt,
 };
 use std::{
-    collections::HashSet,
     fs::File,
-    io::{stdin, stdout, BufReader, BufWriter, Read, Write},
+    io::{stdin, stdout, BufReader, BufWriter, ErrorKind, Read, Write},
 };
 use clap::{crate_version, Arg, App};
 
@@ -101,14 +100,20 @@ fn main() {
     );
     let mut sizes = Vec::<Size>::new();
     let mut size;
-    let mut y_values = HashSet::new();
 
     'segs: loop {
 
         let mut seg = match input.read_seg() {
             Ok(seg) => seg,
             Err(err) => {
-                eprintln!("Could not read anymore segments: {:?}", err);
+                match err {
+                    SegReadError::IoError { source } => {
+                        if source.kind() != ErrorKind::UnexpectedEof {
+                            panic!("Could not read segment due to IO error: {}", source)
+                        }
+                    }
+                    _ => panic!("Could not read segment due to bitstream error: {}", err)
+                }
                 break 'segs
             },
         };
@@ -117,7 +122,7 @@ fn main() {
             SegBody::PresComp(pcs) => {
                 size = (pcs.width, pcs.height);
                 if !sizes.contains(&size) {
-                    println!("New resolution encountered: {}x{}", size.0, size.1);
+                    eprintln!("New resolution encountered: {}x{}", size.0, size.1);
                     sizes.push(size);
                 }
                 pcs.width = crop_width;
@@ -132,11 +137,6 @@ fn main() {
                         },
                         None => (),
                     }
-                }
-            },
-            SegBody::PalDef(pds) => {
-                for entry in &pds.entries {
-                    y_values.insert(entry.y);
                 }
             },
             _ => ()
