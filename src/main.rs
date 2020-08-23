@@ -57,12 +57,6 @@ fn main() {
                 }
             })
         )
-        .arg(Arg::with_name("max-y")
-            .long("max-y")
-            .short("m")
-            .help("Output the Y value of the brightest palette definition")
-            .takes_value(false)
-        )
         .arg(Arg::with_name("input")
             .index(1)
             .value_name("INPUT-FILE")
@@ -81,7 +75,6 @@ fn main() {
         .get_matches();
     let crop_width = matches.value_of("crop-width").unwrap().parse::<u16>().unwrap();
     let crop_height = matches.value_of("crop-height").unwrap().parse::<u16>().unwrap();
-    let show_max_y = matches.is_present("max-y");
     let input_value = matches.value_of("input").unwrap();
     let (mut stdin_read, mut file_read);
     let mut input = BufReader::<&mut dyn Read>::new(
@@ -115,12 +108,6 @@ fn main() {
         let mut seg = match input.read_seg() {
             Ok(seg) => seg,
             Err(err) => {
-                if show_max_y {
-                    match y_values.iter().max() {
-                        Some(max_y) => println!("Maximum Y value: {}", max_y),
-                        None => println!("No Y values were encounted."),
-                    }
-                }
                 eprintln!("Could not read anymore segments: {:?}", err);
                 break 'segs
             },
