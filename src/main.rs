@@ -23,9 +23,9 @@ type Size = (u16, u16);
 
 fn main() {
 
-    let matches = App::new("PGSScale")
+    let matches = App::new("PGSMod")
         .version(crate_version!())
-        .about("Scales PGS subtitles")
+        .about("Modifies PGS subtitles")
         .arg(Arg::with_name("crop-width")
             .long("crop-width")
             .short("w")

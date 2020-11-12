@@ -1,8 +1,8 @@
-PGSScale 0.1.0
-Scales PGS subtitles
+PGSMod 0.1.0
+Modifies PGS subtitles
 
 USAGE:
-    pgsscale <INPUT-FILE> <OUTPUT-FILE> --crop-height <PIXELS> --crop-width <PIXELS>
+    pgsmod <INPUT-FILE> <OUTPUT-FILE> --crop-height <PIXELS> --crop-width <PIXELS>
 
 FLAGS:
         --help       Prints help information
