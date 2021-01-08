@@ -99,7 +99,7 @@ fn main() {
         }
     );
     let mut sizes = Vec::<Size>::new();
-    let mut size;
+    let mut size = (0, 0);
 
     'segs: loop {
 
@@ -137,6 +137,12 @@ fn main() {
                         },
                         None => (),
                     }
+                }
+            },
+            SegBody::WinDef(wds) => {
+                for wd in wds.iter_mut() {
+                    wd.x = cropped_offset(wd.x, size.0, crop_width);
+                    wd.y = cropped_offset(wd.y, size.1, crop_height);
                 }
             },
             _ => ()
