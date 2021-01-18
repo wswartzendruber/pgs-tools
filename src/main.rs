@@ -6,7 +6,7 @@
  * https://mozilla.org/MPL/2.0/.
  */
 
-pub mod pgs;
+mod pgs;
 mod rgb;
 
 use pgs::{
