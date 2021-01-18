@@ -168,17 +168,20 @@ fn cropped_object_offset(
     object_offset: u16,
     margin: u16,
 ) -> u16 {
+
     if object_size + 2 * margin > screen_crop_size {
         println!("WARNING: Object cannot fit within new margins.");
-        0
-    } else {
-        match object_offset {
-            o if o < (screen_full_size - screen_crop_size) / 2 + margin =>
-                margin,
-            o if o < (screen_full_size - screen_crop_size) / 2 + screen_full_size - margin =>
-                screen_crop_size - object_size - margin,
-            _ =>
-                object_offset - (screen_full_size - screen_crop_size) / 2,
-        }
+        return 0
+    }
+
+    let new_offset = object_offset - (screen_full_size - screen_crop_size) / 2;
+
+    match new_offset {
+        o if o < margin =>
+            margin,
+        o if o + object_size + margin > screen_crop_size =>
+            screen_full_size - object_size - margin,
+        _ =>
+            new_offset,
     }
 }
