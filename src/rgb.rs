@@ -39,11 +39,13 @@ pub fn rgb_linear_pixel(input: YcbcrGammaPixel) -> RgbLinearPixel {
 fn ycbcr_gamma_pixel(rgb: RgbLinearPixel) -> YcbcrGammaPixel {
     YcbcrGammaPixel {
         y:
-            (compress(bt1886_oetf(
+           ((compress(bt1886_oetf(
                 0.2126 * rgb.red
                 + 0.7152 * rgb.green
                 + 0.0722 * rgb.blue
-            )) * 255.0).max(0.0).min(255.0).round() as u8,
+            )) * 255.0) - 0.25).max(0.0).min(255.0).round() as u8,
+            // The '- 0.25' is an absolutely ridiculous hack to ensure that all possible YCbCr
+            // combinations map to RGB and back to their original values.
         cb:
             ((
                 -0.09991 * rgb.red

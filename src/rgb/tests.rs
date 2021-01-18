@@ -8,7 +8,7 @@ use super::*;
 #[test]
 fn test_every_possible_yuv_combination() {
 
-    for y in 17..235 {
+    for y in 16..235 {
         for cb in 0..=255 {
             for cr in 0..=255 {
 
