@@ -7,6 +7,7 @@
  */
 
 pub mod pgs;
+mod rgb;
 
 use pgs::{
     SegBody,
