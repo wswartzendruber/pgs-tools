@@ -36,8 +36,6 @@ pub enum SegWriteError {
     TooManyCompObjs,
     #[error("too many window definition segments")]
     TooManyWinDefSegs,
-    #[error("too many palette entries")]
-    TooManyPalEntries,
     #[error("object data too large")]
     ObjDataTooLarge,
 }
