@@ -2,7 +2,7 @@ PGSMod 0.1.0
 Modifies PGS subtitles
 
 USAGE:
-    pgsmod <INPUT-FILE> <OUTPUT-FILE> --crop-height <PIXELS> --crop-width <PIXELS>
+    pgsmod [OPTIONS] <INPUT-FILE> <OUTPUT-FILE> --crop-height <PIXELS> --crop-width <PIXELS>
 
 FLAGS:
         --help       Prints help information
@@ -11,6 +11,8 @@ FLAGS:
 OPTIONS:
     -h, --crop-height <PIXELS>    Height to crop each subtitle frame to
     -w, --crop-width <PIXELS>     Width to crop each subtitle frame to
+    -m, --margin <PIXELS>         Minimum margin around the screen border to enforce [default: 30]
+    -t, --tone-map <tone-map>     Apply tone mapping [values: sdr, pq, hlg]
 
 ARGS:
     <INPUT-FILE>     Input PGS file; use - for STDIN
