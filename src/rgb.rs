@@ -11,16 +11,16 @@ mod tests;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct YcbcrGammaPixel {
-    y: u8,
-    cb: u8,
-    cr: u8,
+    pub y: u8,
+    pub cb: u8,
+    pub cr: u8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RgbLinearPixel {
-    red: f64,
-    green: f64,
-    blue: f64,
+    pub red: f64,
+    pub green: f64,
+    pub blue: f64,
 }
 
 pub fn rgb_linear_pixel(input: YcbcrGammaPixel) -> RgbLinearPixel {
@@ -36,7 +36,7 @@ pub fn rgb_linear_pixel(input: YcbcrGammaPixel) -> RgbLinearPixel {
     }
 }
 
-fn ycbcr_gamma_pixel(rgb: RgbLinearPixel) -> YcbcrGammaPixel {
+pub fn ycbcr_gamma_pixel(rgb: RgbLinearPixel) -> YcbcrGammaPixel {
     YcbcrGammaPixel {
         y:
            ((compress(bt1886_oetf(

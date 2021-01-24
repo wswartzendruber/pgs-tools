@@ -15,6 +15,7 @@ use pgs::{
     read::{ReadSegExt, SegReadError},
     write::WriteSegExt,
 };
+use rgb::{rgb_linear_pixel, ycbcr_gamma_pixel, YcbcrGammaPixel};
 use std::{
     collections::HashMap,
     fs::File,
@@ -34,8 +35,13 @@ struct Size {
     height: u16,
 }
 
+const TONE_MAX_SDR: f64 = 1.0;
+const TONE_MAX_PQ: f64 = 0.2705373206557394;
+const TONE_MAX_HLG: f64 = 0.5013569413029385;
+
 fn main() {
 
+    let tone_maps = ["sdr", "pq", "hlg"];
     let matches = App::new("PGSMod")
         .version(crate_version!())
         .about("Modifies PGS subtitles")
@@ -85,6 +91,14 @@ fn main() {
                 }
             })
         )
+        .arg(Arg::with_name("tone-map")
+            .long("tone-map")
+            .short("t")
+            .help("Apply tone mapping")
+            .takes_value(true)
+            .required(false)
+            .possible_values(&tone_maps)
+        )
         .arg(Arg::with_name("input")
             .index(1)
             .value_name("INPUT-FILE")
@@ -104,6 +118,15 @@ fn main() {
     let crop_width = matches.value_of("crop-width").unwrap().parse::<u16>().unwrap();
     let crop_height = matches.value_of("crop-height").unwrap().parse::<u16>().unwrap();
     let margin = matches.value_of("margin").unwrap().parse::<u16>().unwrap();
+    let tone_max = match matches.value_of("tone-map") {
+        Some(max) => match max {
+            "sdr" => Some(TONE_MAX_SDR),
+            "pq" => Some(TONE_MAX_PQ),
+            "hlg" => Some(TONE_MAX_HLG),
+            _ => panic!("Invalid tone-map maximum selected."),
+        }
+        None => None
+    };
     let input_value = matches.value_of("input").unwrap();
     let (mut stdin_read, mut file_read);
     let mut input = BufReader::<&mut dyn Read>::new(
@@ -156,6 +179,7 @@ fn main() {
 
     let mut comp_num = 0;
     let mut obj_sizes = HashMap::new();
+    let mut max_channel = 0.0_f64;
 
     eprintln!("Inventorying segments...");
 
@@ -172,12 +196,24 @@ fn main() {
                     panic!("Duplicate object ID detected in a given display set.")
                 }
             }
+            SegBody::PalDef(pds) => {
+                for pde in pds.entries.iter() {
+                    let rgb = rgb_linear_pixel(
+                        YcbcrGammaPixel { y: pde.y, cb: pde.cb, cr: pde.cr }
+                    );
+                    max_channel = max_channel.max(rgb.red).max(rgb.green).max(rgb.blue);
+                }
+            }
             _ => {
                 ()
             }
         }
     }
 
+    let tone_ratio = match tone_max {
+        Some(x) => Some(max_channel / x),
+        None => None,
+    };
     let mut screen_sizes = Vec::<Size>::new();
     let mut screen_full_size = Size { width: 0, height: 0 };
 
@@ -254,6 +290,27 @@ fn main() {
                         wd.y,
                         margin,
                     );
+                }
+            }
+            SegBody::PalDef(pds) => {
+                match tone_ratio {
+                    Some(x) => {
+                        for pde in pds.entries.iter_mut() {
+                            let mut rgb = rgb_linear_pixel(
+                                YcbcrGammaPixel { y: pde.y, cb: pde.cb, cr: pde.cr }
+                            );
+                            rgb.red /= x;
+                            rgb.green /= x;
+                            rgb.blue /= x;
+                            let ycbcr = ycbcr_gamma_pixel(rgb);
+                            pde.y = ycbcr.y;
+                            pde.cb = ycbcr.cb;
+                            pde.cr = ycbcr.cr;
+                        }
+                    }
+                    None => {
+                        ()
+                    }
                 }
             }
             _ => ()
