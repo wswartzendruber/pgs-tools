@@ -181,6 +181,10 @@ fn main() {
     let mut obj_sizes = HashMap::new();
     let mut max_channel = 0.0_f64;
 
+    //
+    // INVENTORY
+    //
+
     eprintln!("Inventorying segments...");
 
     for seg in segs.iter() {
@@ -216,6 +220,10 @@ fn main() {
     };
     let mut screen_sizes = Vec::<Size>::new();
     let mut screen_full_size = Size { width: 0, height: 0 };
+
+    //
+    // MODIFY
+    //
 
     eprintln!("Performing modifications...");
 
@@ -316,6 +324,10 @@ fn main() {
             _ => ()
         }
     }
+
+    //
+    // WRITE
+    //
 
     eprintln!("Writing modified segments...");
 
