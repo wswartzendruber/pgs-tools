@@ -17,6 +17,7 @@ use pgs::{
 };
 use rgb::{rgb_linear_pixel, ycbcr_gamma_pixel, YcbcrGammaPixel};
 use std::{
+    cmp::max,
     collections::HashMap,
     fs::File,
     io::{stdin, stdout, BufReader, BufWriter, ErrorKind, Read, Write},
@@ -193,18 +194,46 @@ fn main() {
                 comp_num = pcs.comp_num
             }
             SegBody::ObjDef(ods) => {
-                if obj_sizes.insert(
-                    ObjHandle { comp_num, obj_id: ods.id },
-                    Size { width: ods.width, height: ods.height },
-                ).is_some() {
-                    panic!("Duplicate object ID detected in a given display set.")
+
+                let id = ObjHandle { comp_num, obj_id: ods.id };
+                let new_size = Size { width: ods.width, height: ods.height };
+
+                if let Some(old_size) = obj_sizes.get(&id) {
+                    if new_size != *old_size {
+
+                        eprintln!("WARNING: Objects with same ID have mismatching sizes.");
+                        eprintln!(
+                            "         {}x{} != {}x{}",
+                            old_size.width,
+                            old_size.height,
+                            new_size.width,
+                            new_size.height,
+                        );
+
+                        let corrected_size = Size {
+                            width: max(old_size.width, new_size.width),
+                            height: max(old_size.height, new_size.height),
+                        };
+
+                        eprintln!(
+                            "         Using corrected size: {}x{}",
+                            corrected_size.width,
+                            corrected_size.height,
+                        );
+
+                        obj_sizes.insert(id, corrected_size);
+                    }
+                } else {
+                    obj_sizes.insert(id, new_size);
                 }
             }
             SegBody::PalDef(pds) => {
                 for pde in pds.entries.iter() {
+
                     let rgb = rgb_linear_pixel(
                         YcbcrGammaPixel { y: pde.y, cb: pde.cb, cr: pde.cr }
                     );
+
                     max_channel = max_channel.max(rgb.red).max(rgb.green).max(rgb.blue);
                 }
             }
