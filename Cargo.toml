@@ -5,10 +5,12 @@
 
 [package]
 name = "pgsmod"
+description = "Modifies PGS subtitles"
 version = "0.1.0"
 authors = ["William Swartzendruber <wswartzendruber@gmail.com>"]
 edition = "2018"
 license = "OSL-3.0"
+repository = "https://github.com/wswartzendruber/pgsmod"
 
 [dependencies]
 byteorder = "1.3"

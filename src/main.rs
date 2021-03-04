@@ -19,7 +19,7 @@ use std::{
     fs::File,
     io::{stdin, stdout, BufReader, BufWriter, ErrorKind, Read, Write},
 };
-use clap::{crate_version, Arg, App};
+use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
 
 #[derive(Eq, Hash, PartialEq)]
 struct ObjHandle {
@@ -40,9 +40,7 @@ const TONE_MAX_HLG: f64 = 0.5013569413029385;
 fn main() {
 
     let tone_maps = ["sdr", "pq", "hlg"];
-    let matches = App::new("PGSMod")
-        .version(crate_version!())
-        .about("Modifies PGS subtitles")
+    let matches = app_from_crate!()
         .arg(Arg::with_name("crop-width")
             .long("crop-width")
             .short("w")
@@ -109,9 +107,13 @@ fn main() {
             .help("Output PGS file; use - for STDOUT")
             .required(true)
         )
-        .after_help("This utility will crop PGS subtitles found in Blu-ray discs so that they \
-            can match any cropping that has been done to the main video stream, thereby \
-            preventing the subtitles from appearing squished or distorted by the player.")
+        .after_help(format!("This utility will crop PGS subtitles found in Blu-ray discs so \
+            that they can match any cropping that has been done to the main video stream, \
+            thereby preventing the subtitles from appearing squished or distorted by the \
+            player.\n\n\
+            Copyright © 2021 William Swartzendruber\n\
+            Licensed under the Open Software License version 3.0\n\
+            <{}>", env!("CARGO_PKG_REPOSITORY")).as_str())
         .get_matches();
     let crop_width = matches.value_of("crop-width").unwrap().parse::<u16>().unwrap();
     let crop_height = matches.value_of("crop-height").unwrap().parse::<u16>().unwrap();
