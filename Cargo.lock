@@ -60,12 +60,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "265d751d31d6780a3f956bb5b8022feba2d94eeee5a84ba64f4212eedca42213"
 
 [[package]]
+name = "pgs"
+version = "1.0.0"
+dependencies = [
+ "byteorder",
+ "thiserror",
+]
+
+[[package]]
 name = "pgsmod"
 version = "0.1.0"
 dependencies = [
- "byteorder",
  "clap",
- "thiserror",
+ "pgs",
 ]
 
 [[package]]

@@ -3,7 +3,6 @@
  * Licensed under the Open Software License version 3.0
  */
 
-mod pgs;
 mod rgb;
 
 use pgs::{

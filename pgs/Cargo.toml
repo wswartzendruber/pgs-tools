@@ -4,14 +4,12 @@
 #
 
 [package]
-name = "pgsmod"
-description = "Modifies PGS subtitles"
-version = "0.1.0"
+name = "pgs"
+version = "1.0.0"
 authors = ["William Swartzendruber <wswartzendruber@gmail.com>"]
 edition = "2018"
 license = "OSL-3.0"
-repository = "https://github.com/wswartzendruber/pgsmod"
 
 [dependencies]
-pgs = { path = "../pgs" }
-clap = "~2.27.0"
+byteorder = "1.3"
+thiserror = "1.0"
