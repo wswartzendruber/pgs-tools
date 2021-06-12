@@ -13,8 +13,6 @@ use pgs::{
 };
 use rgb::{rgb_linear_pixel, ycbcr_gamma_pixel, YcbcrGammaPixel};
 use std::{
-    cmp::max,
-    collections::HashMap,
     fs::File,
     io::{stdin, stdout, BufReader, BufWriter, ErrorKind, Read, Write},
 };
@@ -154,6 +152,10 @@ fn main() {
 
     eprintln!("Reading PGS segments into memory...");
 
+    //
+    // READ
+    //
+
     loop {
 
         let seg = match input.read_seg() {
@@ -176,55 +178,16 @@ fn main() {
         segs.push(seg);
     }
 
-    let mut comp_num = 0;
-    let mut obj_sizes = HashMap::new();
-    let mut max_channel = 0.0_f64;
-
     //
     // INVENTORY
     //
 
-    eprintln!("Inventorying segments...");
+    let mut max_channel = 0.0_f64;
+
+    eprintln!("Reading palette definitions...");
 
     for seg in segs.iter() {
         match &seg.body {
-            SegBody::PresComp(pcs) => {
-                comp_num = pcs.comp_num
-            }
-            SegBody::ObjDef(ods) => {
-
-                let id = ObjHandle { comp_num, obj_id: ods.id };
-                let new_size = Size { width: ods.width, height: ods.height };
-
-                if let Some(old_size) = obj_sizes.get(&id) {
-                    if new_size != *old_size {
-
-                        eprintln!("WARNING: Objects with same ID have mismatching sizes.");
-                        eprintln!(
-                            "         {}x{} != {}x{}",
-                            old_size.width,
-                            old_size.height,
-                            new_size.width,
-                            new_size.height,
-                        );
-
-                        let corrected_size = Size {
-                            width: max(old_size.width, new_size.width),
-                            height: max(old_size.height, new_size.height),
-                        };
-
-                        eprintln!(
-                            "         Using corrected size: {}x{}",
-                            corrected_size.width,
-                            corrected_size.height,
-                        );
-
-                        obj_sizes.insert(id, corrected_size);
-                    }
-                } else {
-                    obj_sizes.insert(id, new_size);
-                }
-            }
             SegBody::PalDef(pds) => {
                 for pde in pds.entries.iter() {
 
@@ -257,7 +220,6 @@ fn main() {
     for seg in segs.iter_mut() {
         match &mut seg.body {
             SegBody::PresComp(pcs) => {
-                comp_num = pcs.comp_num;
                 screen_full_size = Size { width: pcs.width, height: pcs.height };
                 if !screen_sizes.contains(&screen_full_size) {
                     eprintln!(
@@ -266,59 +228,19 @@ fn main() {
                     );
                     screen_sizes.push(screen_full_size);
                 }
-                for comp_obj in pcs.comp_objs.iter_mut() {
-                    let obj_size = obj_sizes.get(
-                        &ObjHandle { comp_num, obj_id: comp_obj.obj_id }
-                    ).expect("Could not find object size.");
-                    comp_obj.x = cropped_object_offset(
-                        screen_full_size.width,
-                        crop_width,
-                        obj_size.width,
-                        comp_obj.x,
-                        margin,
-                    );
-                    comp_obj.y = cropped_object_offset(
-                        screen_full_size.height,
-                        crop_height,
-                        obj_size.height,
-                        comp_obj.y,
-                        margin,
-                    );
-                    match &mut comp_obj.crop {
-                        Some(crop) => {
-                            crop.x = cropped_object_offset(
-                                screen_full_size.width,
-                                crop_width,
-                                crop.width,
-                                crop.x,
-                                margin,
-                            );
-                            crop.y = cropped_object_offset(
-                                screen_full_size.height,
-                                crop_height,
-                                crop.height,
-                                crop.y,
-                                margin,
-                            );
-                        }
-                        None => {
-                            ()
-                        }
-                    }
-                }
                 pcs.width = crop_width;
                 pcs.height = crop_height;
             }
             SegBody::WinDef(wds) => {
                 for wd in wds.iter_mut() {
-                    wd.x = cropped_object_offset(
+                    wd.x = cropped_window_offset(
                         screen_full_size.width,
                         crop_width,
                         wd.width,
                         wd.x,
                         margin,
                     );
-                    wd.y = cropped_object_offset(
+                    wd.y = cropped_window_offset(
                         screen_full_size.height,
                         crop_height,
                         wd.height,
@@ -367,26 +289,26 @@ fn main() {
     output.flush().expect("Could not flush output stream.");
 }
 
-fn cropped_object_offset(
+fn cropped_window_offset(
     screen_full_size: u16,
     screen_crop_size: u16,
-    object_size: u16,
-    object_offset: u16,
+    window_size: u16,
+    window_offset: u16,
     margin: u16,
 ) -> u16 {
 
-    if object_size + 2 * margin > screen_crop_size {
-        eprintln!("WARNING: Object or window cannot fit within new margins.");
+    if window_size + 2 * margin > screen_crop_size {
+        eprintln!("WARNING: Window cannot fit within new margins.");
         return 0
     }
 
-    let new_offset = object_offset - (screen_full_size - screen_crop_size) / 2;
+    let new_offset = window_offset - (screen_full_size - screen_crop_size) / 2;
 
     match new_offset {
         o if o < margin =>
             margin,
-        o if o + object_size + margin > screen_crop_size =>
-            screen_crop_size - object_size - margin,
+        o if o + window_size + margin > screen_crop_size =>
+            screen_crop_size - window_size - margin,
         _ =>
             new_offset,
     }
