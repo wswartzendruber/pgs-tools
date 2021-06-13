@@ -68,6 +68,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgsdump"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "pgs",
+]
+
+[[package]]
 name = "pgsmod"
 version = "0.1.0"
 dependencies = [

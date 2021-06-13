@@ -66,7 +66,7 @@ impl<T> WriteSegExt for T where T: Write {
                 self.write_u8(0x15)?;
                 write_ods(ods)?
             },
-            SegBody::End(_) => {
+            SegBody::End => {
                 self.write_u8(0x80)?;
                 vec![]
             },

@@ -7,7 +7,6 @@ use super::{
     CompObj,
     CompObjCrop,
     CompState,
-    EndSeg,
     ObjDefSeg,
     ObjSeq,
     PalDefSeg,
@@ -71,7 +70,7 @@ impl<T> ReadSegExt for T where T: Read  {
             0x15 => SegBody::ObjDef(parse_ods(&payload)?),
             0x16 => SegBody::PresComp(parse_pcs(&payload)?),
             0x17 => SegBody::WinDef(parse_wds(&payload)?),
-            0x80 => SegBody::End(EndSeg { }),
+            0x80 => SegBody::End,
             _ => return Err(SegReadError::UnrecognizedKind),
         };
 

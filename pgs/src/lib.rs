@@ -11,7 +11,7 @@ pub enum SegBody {
     WinDef(Vec<WinDefSeg>),
     PalDef(PalDefSeg),
     ObjDef(ObjDefSeg),
-    End(EndSeg),
+    End,
 }
 
 pub enum CompState {
@@ -88,5 +88,3 @@ pub struct ObjDefSeg {
     pub height: u16,
     pub data: Vec<u8>,
 }
-
-pub struct EndSeg { }
