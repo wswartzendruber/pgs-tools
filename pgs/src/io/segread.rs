@@ -49,7 +49,7 @@ pub trait ReadSegExt {
     fn read_seg(&mut self) -> SegReadResult<Seg>;
 }
 
-impl<T> ReadSegExt for T where T: Read  {
+impl<T: Read> ReadSegExt for T {
 
     fn read_seg(&mut self) -> SegReadResult<Seg> {
 

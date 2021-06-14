@@ -41,7 +41,7 @@ pub trait WriteSegExt {
     fn write_seg(&mut self, seg: &Seg) -> SegWriteResult<()>;
 }
 
-impl<T> WriteSegExt for T where T: Write {
+impl<T: Write> WriteSegExt for T {
 
     fn write_seg(&mut self, seg: &Seg) -> SegWriteResult<()> {
 
