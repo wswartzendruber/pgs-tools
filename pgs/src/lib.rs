@@ -3,8 +3,7 @@
  * Licensed under the Open Software License version 3.0
  */
 
-pub mod read;
-pub mod write;
+pub mod io;
 
 pub enum SegBody {
     PresComp(PresCompSeg),

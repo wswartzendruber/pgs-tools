@@ -7,7 +7,7 @@ use pgs::{
     CompState,
     ObjSeq,
     SegBody,
-    read::{ReadSegExt, SegReadError},
+    io::{ReadSegExt, SegReadError},
 };
 use std::{
     fs::File,

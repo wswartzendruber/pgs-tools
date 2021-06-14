@@ -8,8 +8,7 @@ mod rgb;
 use pgs::{
     Seg,
     SegBody,
-    read::{ReadSegExt, SegReadError},
-    write::WriteSegExt,
+    io::{ReadSegExt, SegReadError, WriteSegExt},
 };
 use rgb::{rgb_linear_pixel, ycbcr_gamma_pixel, YcbcrGammaPixel};
 use std::{

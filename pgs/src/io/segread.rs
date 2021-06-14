@@ -3,7 +3,7 @@
  * Licensed under the Open Software License version 3.0
  */
 
-use super::{
+use super::super::{
     CompObj,
     CompObjCrop,
     CompState,
