@@ -95,14 +95,17 @@ fn write_pcs(pcs: &PresCompSeg) -> SegWriteResult<Vec<u8>> {
             CompState::EpochStart => 0x80,
         }
     )?;
-    payload.write_u8(
-        if pcs.pal_update {
-            0x80
-        } else {
-            0x00
+
+    match pcs.pal_update_id {
+        Some(pal_id) => {
+            payload.write_u8(0x80)?;
+            payload.write_u8(pal_id)?;
         }
-    )?;
-    payload.write_u8(pcs.pal_id)?;
+        None => {
+            payload.write_u8(0x00)?;
+            payload.write_u8(0)?;
+        }
+    }
 
     if pcs.comp_objs.len() <= 255 {
         payload.write_u8(pcs.comp_objs.len() as u8)?;

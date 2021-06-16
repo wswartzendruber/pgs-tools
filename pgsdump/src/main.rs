@@ -63,11 +63,10 @@ fn main() {
                             CompState::Normal => "NORMAL_CASE",
                             CompState::AcquisitionPoint => "ACQUISITION_POINT",
                         });
-                        println!("  palette_update_flag = {}", match pcs.pal_update {
-                            true => "TRUE",
-                            false => "FALSE",
-                        });
-                        println!("  palette_id = {}", pcs.pal_id);
+                        match pcs.pal_update_id {
+                            Some(pal_id) => println!("  palette_update_id = {}", pal_id),
+                            None => (),
+                        }
                         for comp_obj in pcs.comp_objs.iter() {
                             println!("  window_information");
                             println!("    object_id = {}", comp_obj.obj_id);

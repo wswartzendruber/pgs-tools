@@ -38,8 +38,7 @@ pub struct PresCompSeg {
     pub frame_rate: u8,
     pub comp_num: u16,
     pub comp_state: CompState,
-    pub pal_update: bool,
-    pub pal_id: u8,
+    pub pal_update_id: Option<u8>,
     pub comp_objs: Vec<CompObj>,
 }
 

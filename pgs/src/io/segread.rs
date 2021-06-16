@@ -94,12 +94,18 @@ fn parse_pcs(payload: &[u8]) -> SegReadResult<PresCompSeg> {
         0x80 => CompState::EpochStart,
         _ => return Err(SegReadError::UnrecognizedCompState),
     };
-    let pal_update = match input.read_u8()? {
-        0x00 => false,
-        0x80 => true,
-        _ => return Err(SegReadError::UnrecognizedPalUpdateFlag),
+    let pal_update_id = match input.read_u8()? {
+        0x00 => {
+            input.read_u8()?;
+            None
+        }
+        0x80 => {
+            Some(input.read_u8()?)
+        }
+        _ => {
+            return Err(SegReadError::UnrecognizedPalUpdateFlag)
+        }
     };
-    let pal_id = input.read_u8()?;
     let comp_obj_count = input.read_u8()? as usize;
     let mut comp_objs = Vec::new();
 
@@ -153,8 +159,7 @@ fn parse_pcs(payload: &[u8]) -> SegReadResult<PresCompSeg> {
             frame_rate,
             comp_num,
             comp_state,
-            pal_update,
-            pal_id,
+            pal_update_id,
             comp_objs,
         }
     )
