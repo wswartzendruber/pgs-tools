@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: OSL-3.0
  */
 
-use pgs::{
+use pgs::seg::{
     CompState,
     ObjSeq,
+    ReadSegExt,
     SegBody,
-    io::{ReadSegExt, SegReadError},
+    SegReadError,
 };
 use std::{
     fs::File,

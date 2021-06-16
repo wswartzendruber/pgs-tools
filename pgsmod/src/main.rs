@@ -6,10 +6,12 @@
 
 mod rgb;
 
-use pgs::{
+use pgs::seg::{
+    ReadSegExt,
     Seg,
     SegBody,
-    io::{ReadSegExt, SegReadError, WriteSegExt},
+    SegReadError,
+    WriteSegExt,
 };
 use rgb::{rgb_linear_pixel, ycbcr_gamma_pixel, YcbcrGammaPixel};
 use std::{

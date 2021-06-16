@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: OSL-3.0
  */
 
-use super::super::{
+use super::{
     CompState,
     ObjDefSeg,
     ObjSeq,
