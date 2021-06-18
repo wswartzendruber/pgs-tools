@@ -4,4 +4,4 @@
  * SPDX-License-Identifier: OSL-3.0
  */
 
-pub mod seg;
+pub mod segment;

@@ -6,12 +6,11 @@
 
 mod rgb;
 
-use pgs::seg::{
-    ReadSegExt,
-    Seg,
-    SegBody,
-    SegReadError,
-    WriteSegExt,
+use pgs::segment::{
+    ReadSegmentExt,
+    Segment,
+    ReadError,
+    WriteSegmentExt,
 };
 use rgb::{rgb_linear_pixel, ycbcr_gamma_pixel, YcbcrGammaPixel};
 use std::{
@@ -22,8 +21,8 @@ use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_v
 
 #[derive(Eq, Hash, PartialEq)]
 struct ObjHandle {
-    comp_num: u16,
-    obj_id: u16,
+    composition_number: u16,
+    object_id: u16,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -150,7 +149,7 @@ fn main() {
             &mut file_write
         }
     );
-    let mut segs = Vec::<Seg>::new();
+    let mut segs = Vec::<Segment>::new();
 
     eprintln!("Reading PGS segments into memory...");
 
@@ -160,13 +159,13 @@ fn main() {
 
     loop {
 
-        let seg = match input.read_seg() {
-            Ok(seg) => {
-                seg
+        let segment = match input.read_segment() {
+            Ok(segment) => {
+                segment
             }
             Err(err) => {
                 match err {
-                    SegReadError::IoError { source } => {
+                    ReadError::IoError { source } => {
                         if source.kind() != ErrorKind::UnexpectedEof {
                             panic!("Could not read segment due to IO error: {}", source)
                         }
@@ -177,7 +176,7 @@ fn main() {
             }
         };
 
-        segs.push(seg);
+        segs.push(segment);
     }
 
     //
@@ -188,9 +187,9 @@ fn main() {
 
     eprintln!("Reading palette definitions...");
 
-    for seg in segs.iter() {
-        match &seg.body {
-            SegBody::PalDef(pds) => {
+    for segment in segs.iter() {
+        match &segment {
+            Segment::PaletteDefinition(pds) => {
                 for pde in pds.entries.iter() {
 
                     let rgb = rgb_linear_pixel(
@@ -219,9 +218,9 @@ fn main() {
 
     eprintln!("Performing modifications...");
 
-    for seg in segs.iter_mut() {
-        match &mut seg.body {
-            SegBody::PresComp(pcs) => {
+    for segment in segs.iter_mut() {
+        match segment {
+            Segment::PresentationComposition(pcs) => {
                 screen_full_size = Size { width: pcs.width, height: pcs.height };
                 if !screen_sizes.contains(&screen_full_size) {
                     eprintln!(
@@ -233,8 +232,8 @@ fn main() {
                 pcs.width = crop_width;
                 pcs.height = crop_height;
             }
-            SegBody::WinDef(wds) => {
-                for wd in wds.iter_mut() {
+            Segment::WindowDefinition(wds) => {
+                for wd in wds.windows.iter_mut() {
                     wd.x = cropped_window_offset(
                         screen_full_size.width,
                         crop_width,
@@ -251,7 +250,7 @@ fn main() {
                     );
                 }
             }
-            SegBody::PalDef(pds) => {
+            Segment::PaletteDefinition(pds) => {
                 match tone_ratio {
                     Some(x) => {
                         for pde in pds.entries.iter_mut() {
@@ -282,8 +281,8 @@ fn main() {
 
     eprintln!("Writing modified segments...");
 
-    for seg in segs {
-        if let Err(err) = output.write_seg(&seg) {
+    for segment in segs {
+        if let Err(err) = output.write_segment(&segment) {
             panic!("Could not write frame to output stream: {:?}", err)
         }
     }

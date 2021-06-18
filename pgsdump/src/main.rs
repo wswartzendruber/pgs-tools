@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: OSL-3.0
  */
 
-use pgs::seg::{
-    CompState,
-    ObjSeq,
-    ReadSegExt,
-    SegBody,
-    SegReadError,
+use pgs::segment::{
+    CompositionState,
+    ObjectSequence,
+    ReadSegmentExt,
+    Segment,
+    ReadError,
 };
 use std::{
     fs::File,
@@ -52,26 +52,28 @@ fn main() {
 
     loop {
 
-        match input.read_seg() {
-            Ok(seg) => {
-                let timestamp = ts_to_timestamp(seg.pts);
-                match seg.body {
-                    SegBody::PresComp(pcs) => {
-                        println!("presentation_composition_segment({})", timestamp);
-                        println!("  composition_number = {}", pcs.comp_num);
-                        println!("  composition_state = {}", match pcs.comp_state {
-                            CompState::EpochStart => "EPOCH_START",
-                            CompState::Normal => "NORMAL_CASE",
-                            CompState::AcquisitionPoint => "ACQUISITION_POINT",
+        match input.read_segment() {
+            Ok(segment) => {
+                match segment {
+                    Segment::PresentationComposition(pcs) => {
+                        println!(
+                            "presentation_composition_segment({})",
+                            ts_to_timestamp(pcs.pts),
+                        );
+                        println!("  composition_number = {}", pcs.composition_number);
+                        println!("  composition_state = {}", match pcs.composition_state {
+                            CompositionState::EpochStart => "EPOCH_START",
+                            CompositionState::Normal => "NORMAL_CASE",
+                            CompositionState::AcquisitionPoint => "ACQUISITION_POINT",
                         });
-                        match pcs.pal_update_id {
+                        match pcs.palette_update_id {
                             Some(pal_id) => println!("  palette_update_id = {}", pal_id),
                             None => (),
                         }
-                        for comp_obj in pcs.comp_objs.iter() {
+                        for comp_obj in pcs.composition_objects.iter() {
                             println!("  window_information");
-                            println!("    object_id = {}", comp_obj.obj_id);
-                            println!("    window_id = {}", comp_obj.win_id);
+                            println!("    object_id = {}", comp_obj.object_id);
+                            println!("    window_id = {}", comp_obj.window_id);
                             println!("    object_horizontal_position = {}", comp_obj.x);
                             println!("    object_vertical_position = {}", comp_obj.y);
                             match &comp_obj.crop {
@@ -91,9 +93,9 @@ fn main() {
                             }
                         }
                     }
-                    SegBody::WinDef(wds) => {
-                        for wd in wds.iter() {
-                            println!("window_definition_segment({})", timestamp);
+                    Segment::WindowDefinition(wds) => {
+                        println!("window_definition_segment({})", ts_to_timestamp(wds.pts));
+                        for wd in wds.windows.iter() {
                             println!("  window_id = {}", wd.id);
                             println!("  window_horizontal_position = {}", wd.x);
                             println!("  window_vertical_position = {}", wd.y);
@@ -102,23 +104,23 @@ fn main() {
                         }
 
                     }
-                    SegBody::ObjDef(ods) => {
-                        println!("object_definition_segment({})", timestamp);
+                    Segment::ObjectDefinition(ods) => {
+                        println!("object_definition_segment({})", ts_to_timestamp(ods.pts));
                         println!("  object_id = {}", ods.id);
                         println!("  object_version_number = {}", ods.version);
-                        match ods.seq {
-                            Some(seq) => {
-                                println!("  object_sequence = {}", match seq {
-                                    ObjSeq::Last => "LAST",
-                                    ObjSeq::First => "FIRST",
-                                    ObjSeq::Both => "BOTH",
+                        match ods.sequence {
+                            Some(sequence) => {
+                                println!("  object_sequence = {}", match sequence {
+                                    ObjectSequence::Last => "LAST",
+                                    ObjectSequence::First => "FIRST",
+                                    ObjectSequence::Both => "BOTH",
                                 });
                             }
                             None => { }
                         }
                     }
-                    SegBody::PalDef(pds) => {
-                        println!("palette_definition_segment({})", timestamp);
+                    Segment::PaletteDefinition(pds) => {
+                        println!("palette_definition_segment({})", ts_to_timestamp(pds.pts));
                         println!("  palette_id = {}", pds.id);
                         println!("  palette_version_number = {}", pds.version);
                         for pe in pds.entries.iter() {
@@ -129,15 +131,15 @@ fn main() {
                             println!("    t_value = {}", pe.alpha);
                         }
                     }
-                    SegBody::End => {
-                        println!("end_segment({})", timestamp);
+                    Segment::End(es) => {
+                        println!("end_segment({})", ts_to_timestamp(es.pts));
                         println!();
                     }
                 }
             }
             Err(err) => {
                 match err {
-                    SegReadError::IoError { source } => {
+                    ReadError::IoError { source } => {
                         if source.kind() != ErrorKind::UnexpectedEof {
                             panic!("Could not read segment due to IO error: {}", source)
                         }
