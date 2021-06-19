@@ -6,7 +6,6 @@
 
 use super::{
     CompositionState,
-    EndSegment,
     ObjectDefinitionSegment,
     ObjectSequence,
     PaletteDefinitionSegment,
@@ -49,11 +48,36 @@ impl<T: Write> WriteSegmentExt for T {
         self.write_u16::<BigEndian>(0x5047)?;
 
         let payload = match &segment {
-            Segment::PresentationComposition(pcs) => generate_pcs(pcs)?,
-            Segment::WindowDefinition(wds) => generate_wds(wds)?,
-            Segment::PaletteDefinition(pds) => generate_pds(pds)?,
-            Segment::ObjectDefinition(ods) => generate_ods(ods)?,
-            Segment::End(es) => generate_es(es)?,
+            Segment::PresentationComposition(pcs) => {
+                self.write_u32::<BigEndian>(pcs.pts)?;
+                self.write_u32::<BigEndian>(pcs.dts)?;
+                self.write_u8(0x16)?;
+                generate_pcs(pcs)?
+            }
+            Segment::WindowDefinition(wds) => {
+                self.write_u32::<BigEndian>(wds.pts)?;
+                self.write_u32::<BigEndian>(wds.dts)?;
+                self.write_u8(0x17)?;
+                generate_wds(wds)?
+            }
+            Segment::PaletteDefinition(pds) => {
+                self.write_u32::<BigEndian>(pds.pts)?;
+                self.write_u32::<BigEndian>(pds.dts)?;
+                self.write_u8(0x14)?;
+                generate_pds(pds)?
+            }
+            Segment::ObjectDefinition(ods) => {
+                self.write_u32::<BigEndian>(ods.pts)?;
+                self.write_u32::<BigEndian>(ods.dts)?;
+                self.write_u8(0x15)?;
+                generate_ods(ods)?
+            }
+            Segment::End(es) => {
+                self.write_u32::<BigEndian>(es.pts)?;
+                self.write_u32::<BigEndian>(es.dts)?;
+                self.write_u8(0x80)?;
+                vec![]
+            }
         };
 
         self.write_u16::<BigEndian>(payload.len() as u16)?;
@@ -67,9 +91,6 @@ fn generate_pcs(pcs: &PresentationCompositionSegment) -> SegmentWriteResult<Vec<
 
     let mut payload = vec![];
 
-    payload.write_u32::<BigEndian>(pcs.pts)?;
-    payload.write_u32::<BigEndian>(pcs.dts)?;
-    payload.write_u8(0x16)?;
     payload.write_u16::<BigEndian>(pcs.width)?;
     payload.write_u16::<BigEndian>(pcs.height)?;
     payload.write_u8(pcs.frame_rate)?;
@@ -134,10 +155,6 @@ fn generate_wds(wds: &WindowDefinitionSegment) -> SegmentWriteResult<Vec<u8>> {
 
     let mut payload = vec![];
 
-    payload.write_u32::<BigEndian>(wds.pts)?;
-    payload.write_u32::<BigEndian>(wds.dts)?;
-    payload.write_u8(0x17)?;
-
     if wds.windows.len() <= 255 {
         payload.write_u8(wds.windows.len() as u8)?;
     } else {
@@ -159,9 +176,6 @@ fn generate_pds(pds: &PaletteDefinitionSegment) -> SegmentWriteResult<Vec<u8>> {
 
     let mut payload = vec![];
 
-    payload.write_u32::<BigEndian>(pds.pts)?;
-    payload.write_u32::<BigEndian>(pds.dts)?;
-    payload.write_u8(0x14)?;
     payload.write_u8(pds.id)?;
     payload.write_u8(pds.version)?;
 
@@ -180,9 +194,6 @@ fn generate_ods(ods: &ObjectDefinitionSegment) -> SegmentWriteResult<Vec<u8>> {
 
     let mut payload = vec![];
 
-    payload.write_u32::<BigEndian>(ods.pts)?;
-    payload.write_u32::<BigEndian>(ods.dts)?;
-    payload.write_u8(0x15)?;
     payload.write_u16::<BigEndian>(ods.id)?;
     payload.write_u8(ods.version)?;
     payload.write_u8(
@@ -206,17 +217,6 @@ fn generate_ods(ods: &ObjectDefinitionSegment) -> SegmentWriteResult<Vec<u8>> {
     payload.write_u16::<BigEndian>(ods.width)?;
     payload.write_u16::<BigEndian>(ods.height)?;
     payload.write_all(&ods.data)?;
-
-    Ok(payload)
-}
-
-fn generate_es(es: &EndSegment) -> SegmentWriteResult<Vec<u8>> {
-
-    let mut payload = vec![];
-
-    payload.write_u32::<BigEndian>(es.pts)?;
-    payload.write_u32::<BigEndian>(es.dts)?;
-    payload.write_u8(0x80)?;
 
     Ok(payload)
 }
