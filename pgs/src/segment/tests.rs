@@ -16,8 +16,7 @@ use rand::{thread_rng, Rng};
 fn test_pcs_cycle_no_pui_no_co() {
 
     let mut rng = thread_rng();
-    let mut buffer = vec![];
-    let out_pcs = Segment::PresentationComposition(
+    let segment = Segment::PresentationComposition(
         PresentationCompositionSegment {
             pts: rng.gen(),
             dts: rng.gen(),
@@ -31,20 +30,14 @@ fn test_pcs_cycle_no_pui_no_co() {
         }
     );
 
-    buffer.write_segment(&out_pcs).unwrap();
-
-    let mut cursor = Cursor::new(buffer);
-    let in_pcs = cursor.read_segment().unwrap();
-
-    assert_eq!(out_pcs, in_pcs);
+    cycle(&segment);
 }
 
 #[test]
 fn test_pcs_cycle_no_pui_co() {
 
     let mut rng = thread_rng();
-    let mut buffer = vec![];
-    let out_pcs = Segment::PresentationComposition(
+    let segment = Segment::PresentationComposition(
         PresentationCompositionSegment {
             pts: rng.gen(),
             dts: rng.gen(),
@@ -80,20 +73,14 @@ fn test_pcs_cycle_no_pui_co() {
         }
     );
 
-    buffer.write_segment(&out_pcs).unwrap();
-
-    let mut cursor = Cursor::new(buffer);
-    let in_pcs = cursor.read_segment().unwrap();
-
-    assert_eq!(out_pcs, in_pcs);
+    cycle(&segment);
 }
 
 #[test]
 fn test_pcs_cycle_pui_no_co() {
 
     let mut rng = thread_rng();
-    let mut buffer = vec![];
-    let out_pcs = Segment::PresentationComposition(
+    let segment = Segment::PresentationComposition(
         PresentationCompositionSegment {
             pts: rng.gen(),
             dts: rng.gen(),
@@ -107,20 +94,14 @@ fn test_pcs_cycle_pui_no_co() {
         }
     );
 
-    buffer.write_segment(&out_pcs).unwrap();
-
-    let mut cursor = Cursor::new(buffer);
-    let in_pcs = cursor.read_segment().unwrap();
-
-    assert_eq!(out_pcs, in_pcs);
+    cycle(&segment);
 }
 
 #[test]
 fn test_pcs_cycle_pui_co() {
 
     let mut rng = thread_rng();
-    let mut buffer = vec![];
-    let out_pcs = Segment::PresentationComposition(
+    let segment = Segment::PresentationComposition(
         PresentationCompositionSegment {
             pts: rng.gen(),
             dts: rng.gen(),
@@ -156,10 +137,219 @@ fn test_pcs_cycle_pui_co() {
         }
     );
 
-    buffer.write_segment(&out_pcs).unwrap();
+    cycle(&segment);
+}
+
+#[test]
+fn test_wds_empty() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::WindowDefinition(
+        WindowDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            windows: vec![],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_wds_not_empty() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::WindowDefinition(
+        WindowDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            windows: vec![
+                WindowDefinition {
+                    id: rng.gen(),
+                    x: rng.gen(),
+                    y: rng.gen(),
+                    width: rng.gen(),
+                    height: rng.gen(),
+                },
+                WindowDefinition {
+                    id: rng.gen(),
+                    x: rng.gen(),
+                    y: rng.gen(),
+                    width: rng.gen(),
+                    height: rng.gen(),
+                },
+                WindowDefinition {
+                    id: rng.gen(),
+                    x: rng.gen(),
+                    y: rng.gen(),
+                    width: rng.gen(),
+                    height: rng.gen(),
+                },
+            ],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_pds_empty() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::PaletteDefinition(
+        PaletteDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            id: rng.gen(),
+            version: rng.gen(),
+            entries: vec![],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_pds_not_empty() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::PaletteDefinition(
+        PaletteDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            id: rng.gen(),
+            version: rng.gen(),
+            entries: vec![
+                PaletteEntry {
+                    id: rng.gen(),
+                    y: rng.gen(),
+                    cr: rng.gen(),
+                    cb: rng.gen(),
+                    alpha: rng.gen(),
+                },
+                PaletteEntry {
+                    id: rng.gen(),
+                    y: rng.gen(),
+                    cr: rng.gen(),
+                    cb: rng.gen(),
+                    alpha: rng.gen(),
+                },
+                PaletteEntry {
+                    id: rng.gen(),
+                    y: rng.gen(),
+                    cr: rng.gen(),
+                    cb: rng.gen(),
+                    alpha: rng.gen(),
+                },
+            ],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_ods_sequence_none() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::ObjectDefinition(
+        ObjectDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            id: rng.gen(),
+            version: rng.gen(),
+            sequence: None,
+            width: rng.gen(),
+            height: rng.gen(),
+            data: vec![0, 1, 2, 3],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_ods_sequence_first() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::ObjectDefinition(
+        ObjectDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            id: rng.gen(),
+            version: rng.gen(),
+            sequence: Some(ObjectSequence::First),
+            width: rng.gen(),
+            height: rng.gen(),
+            data: vec![0, 1, 2, 3],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_ods_sequence_last() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::ObjectDefinition(
+        ObjectDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            id: rng.gen(),
+            version: rng.gen(),
+            sequence: Some(ObjectSequence::Last),
+            width: rng.gen(),
+            height: rng.gen(),
+            data: vec![0, 1, 2, 3],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_ods_sequence_both() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::ObjectDefinition(
+        ObjectDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            id: rng.gen(),
+            version: rng.gen(),
+            sequence: Some(ObjectSequence::Both),
+            width: rng.gen(),
+            height: rng.gen(),
+            data: vec![0, 1, 2, 3],
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_es() {
+
+    let mut rng = thread_rng();
+    let segment = Segment::End(
+        EndSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+        }
+    );
+
+    cycle(&segment);
+}
+
+fn cycle(segment: &Segment) {
+
+    let mut buffer = vec![];
+
+    buffer.write_segment(&segment).unwrap();
 
     let mut cursor = Cursor::new(buffer);
-    let in_pcs = cursor.read_segment().unwrap();
+    let cycled_segment = cursor.read_segment().unwrap();
 
-    assert_eq!(out_pcs, in_pcs);
+    assert_eq!(cycled_segment, *segment);
 }
