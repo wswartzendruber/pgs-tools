@@ -249,7 +249,7 @@ fn test_pds_not_empty() {
 }
 
 #[test]
-fn test_ods_sequence_none() {
+fn test_ods_single() {
 
     let mut rng = thread_rng();
     let segment = Segment::ObjectDefinition(
@@ -258,7 +258,7 @@ fn test_ods_sequence_none() {
             dts: rng.gen(),
             id: rng.gen(),
             version: rng.gen(),
-            sequence: None,
+            sequence: Sequence::Single,
             width: rng.gen(),
             height: rng.gen(),
             data: vec![0, 1, 2, 3],
@@ -269,7 +269,7 @@ fn test_ods_sequence_none() {
 }
 
 #[test]
-fn test_ods_sequence_first() {
+fn test_ods_first() {
 
     let mut rng = thread_rng();
     let segment = Segment::ObjectDefinition(
@@ -278,7 +278,7 @@ fn test_ods_sequence_first() {
             dts: rng.gen(),
             id: rng.gen(),
             version: rng.gen(),
-            sequence: Some(ObjectSequence::First),
+            sequence: Sequence::First,
             width: rng.gen(),
             height: rng.gen(),
             data: vec![0, 1, 2, 3],
@@ -289,7 +289,7 @@ fn test_ods_sequence_first() {
 }
 
 #[test]
-fn test_ods_sequence_last() {
+fn test_ods_last() {
 
     let mut rng = thread_rng();
     let segment = Segment::ObjectDefinition(
@@ -298,27 +298,7 @@ fn test_ods_sequence_last() {
             dts: rng.gen(),
             id: rng.gen(),
             version: rng.gen(),
-            sequence: Some(ObjectSequence::Last),
-            width: rng.gen(),
-            height: rng.gen(),
-            data: vec![0, 1, 2, 3],
-        }
-    );
-
-    cycle(&segment);
-}
-
-#[test]
-fn test_ods_sequence_both() {
-
-    let mut rng = thread_rng();
-    let segment = Segment::ObjectDefinition(
-        ObjectDefinitionSegment {
-            pts: rng.gen(),
-            dts: rng.gen(),
-            id: rng.gen(),
-            version: rng.gen(),
-            sequence: Some(ObjectSequence::Both),
+            sequence: Sequence::Last,
             width: rng.gen(),
             height: rng.gen(),
             data: vec![0, 1, 2, 3],

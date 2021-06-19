@@ -7,10 +7,10 @@
 use super::{
     CompositionState,
     ObjectDefinitionSegment,
-    ObjectSequence,
     PaletteDefinitionSegment,
     PresentationCompositionSegment,
     Segment,
+    Sequence,
     WindowDefinitionSegment,
 };
 use std::io::{
@@ -198,12 +198,9 @@ fn generate_ods(ods: &ObjectDefinitionSegment) -> SegmentWriteResult<Vec<u8>> {
     payload.write_u8(ods.version)?;
     payload.write_u8(
         match &ods.sequence {
-            Some(sequence) => match sequence {
-                ObjectSequence::Last => 0x40,
-                ObjectSequence::First => 0x80,
-                ObjectSequence::Both => 0xC0,
-            },
-            None => 0x00,
+            Sequence::Single => 0xC0,
+            Sequence::First => 0x80,
+            Sequence::Last => 0x40,
         }
     )?;
 

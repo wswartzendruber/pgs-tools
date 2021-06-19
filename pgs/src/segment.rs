@@ -13,7 +13,7 @@ mod segmentwrite;
 pub use segmentread::*;
 pub use segmentwrite::*;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Segment {
     PresentationComposition(PresentationCompositionSegment),
     WindowDefinition(WindowDefinitionSegment),
@@ -22,7 +22,7 @@ pub enum Segment {
     End(EndSegment),
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum CompositionState {
     Normal,
     AcquisitionPoint,
@@ -33,18 +33,18 @@ impl Default for CompositionState {
     fn default() -> Self { Self::EpochStart }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum ObjectSequence {
-    Last,
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum Sequence {
+    Single,
     First,
-    Both,
+    Last,
 }
 
-impl Default for ObjectSequence {
-    fn default() -> Self { Self::Both }
+impl Default for Sequence {
+    fn default() -> Self { Self::Single }
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PresentationCompositionSegment {
     pub pts: u32,
     pub dts: u32,
@@ -57,7 +57,7 @@ pub struct PresentationCompositionSegment {
     pub composition_objects: Vec<CompositionObject>,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct CompositionObject {
     pub object_id: u16,
     pub window_id: u8,
@@ -66,7 +66,7 @@ pub struct CompositionObject {
     pub crop: Option<Crop>,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Crop {
     pub x: u16,
     pub y: u16,
@@ -74,14 +74,14 @@ pub struct Crop {
     pub height: u16,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct WindowDefinitionSegment {
     pub pts: u32,
     pub dts: u32,
     pub windows: Vec<WindowDefinition>,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct WindowDefinition {
     pub id: u8,
     pub x: u16,
@@ -90,7 +90,7 @@ pub struct WindowDefinition {
     pub height: u16,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PaletteDefinitionSegment {
     pub pts: u32,
     pub dts: u32,
@@ -99,7 +99,7 @@ pub struct PaletteDefinitionSegment {
     pub entries: Vec<PaletteEntry>,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PaletteEntry {
     pub id: u8,
     pub y: u8,
@@ -108,19 +108,19 @@ pub struct PaletteEntry {
     pub alpha: u8,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct ObjectDefinitionSegment {
     pub pts: u32,
     pub dts: u32,
     pub id: u16,
     pub version: u8,
-    pub sequence: Option<ObjectSequence>,
+    pub sequence: Sequence,
     pub width: u16,
     pub height: u16,
     pub data: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct EndSegment {
     pub pts: u32,
     pub dts: u32,

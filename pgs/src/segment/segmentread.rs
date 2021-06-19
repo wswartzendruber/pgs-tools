@@ -10,11 +10,11 @@ use super::{
     CompositionState,
     EndSegment,
     ObjectDefinitionSegment,
-    ObjectSequence,
     PaletteDefinitionSegment,
     PaletteEntry,
     PresentationCompositionSegment,
     Segment,
+    Sequence,
     WindowDefinition,
     WindowDefinitionSegment,
 };
@@ -247,10 +247,9 @@ fn parse_ods(
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
     let sequence = match input.read_u8()? {
-        0x00 => None,
-        0x40 => Some(ObjectSequence::Last),
-        0x80 => Some(ObjectSequence::First),
-        0xC0 => Some(ObjectSequence::Both),
+        0xC0 => Sequence::Single,
+        0x80 => Sequence::First,
+        0x40 => Sequence::Last,
         _ => return Err(ReadError::UnrecognizedObjectSequenceFlag),
     };
     let data_size = input.read_u24::<BigEndian>()? as usize;

@@ -6,9 +6,9 @@
 
 use pgs::segment::{
     CompositionState,
-    ObjectSequence,
     ReadSegmentExt,
     Segment,
+    Sequence,
     ReadError,
 };
 use std::{
@@ -108,16 +108,11 @@ fn main() {
                         println!("object_definition_segment({})", ts_to_timestamp(ods.pts));
                         println!("  object_id = {}", ods.id);
                         println!("  object_version_number = {}", ods.version);
-                        match ods.sequence {
-                            Some(sequence) => {
-                                println!("  object_sequence = {}", match sequence {
-                                    ObjectSequence::Last => "LAST",
-                                    ObjectSequence::First => "FIRST",
-                                    ObjectSequence::Both => "BOTH",
-                                });
-                            }
-                            None => { }
-                        }
+                        println!("  object_sequence = {}", match ods.sequence {
+                            Sequence::Single => "SINGLE",
+                            Sequence::First => "FIRST",
+                            Sequence::Last => "LAST",
+                        });
                     }
                     Segment::PaletteDefinition(pds) => {
                         println!("palette_definition_segment({})", ts_to_timestamp(pds.pts));
