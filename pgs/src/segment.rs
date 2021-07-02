@@ -117,7 +117,7 @@ pub struct ObjectDefinitionSegment {
     pub sequence: Sequence,
     pub width: u16,
     pub height: u16,
-    pub data: Vec<u8>,
+    pub lines: Vec<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]

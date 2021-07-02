@@ -24,7 +24,7 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use thiserror::Error as ThisError;
 
-pub type SegmentReadResult<T> = Result<T, ReadError>;
+pub type ReadResult<T> = Result<T, ReadError>;
 
 #[derive(ThisError, Debug)]
 pub enum ReadError {
@@ -45,15 +45,23 @@ pub enum ReadError {
     UnrecognizedCropFlag,
     #[error("unrecognized object definition sequence flag")]
     UnrecognizedObjectSequenceFlag,
+    #[error("invalid object data length")]
+    InvalidObjectDataLength,
+    #[error("incomplete RLE sequence")]
+    IncompleteRleSequence,
+    #[error("invalid RLE sequence")]
+    InvalidRleSequence,
+    #[error("incomplete RLE line")]
+    IncompleteRleLine,
 }
 
 pub trait ReadSegmentExt {
-    fn read_segment(&mut self) -> SegmentReadResult<Segment>;
+    fn read_segment(&mut self) -> ReadResult<Segment>;
 }
 
 impl<T: Read> ReadSegmentExt for T {
 
-    fn read_segment(&mut self) -> SegmentReadResult<Segment> {
+    fn read_segment(&mut self) -> ReadResult<Segment> {
 
         if self.read_u16::<BigEndian>()? != 0x5047 {
             return Err(ReadError::UnrecognizedMagicNumber)
@@ -84,7 +92,7 @@ fn parse_pcs(
     pts: u32,
     dts: u32,
     payload: &[u8],
-) -> SegmentReadResult<PresentationCompositionSegment> {
+) -> ReadResult<PresentationCompositionSegment> {
 
     let mut pos = 11;
     let mut input = Cursor::new(payload);
@@ -176,7 +184,7 @@ fn parse_wds(
     pts: u32,
     dts: u32,
     payload: &[u8],
-) -> SegmentReadResult<WindowDefinitionSegment> {
+) -> ReadResult<WindowDefinitionSegment> {
 
     let mut input = Cursor::new(payload);
     let mut windows = Vec::new();
@@ -207,7 +215,7 @@ fn parse_pds(
     pts: u32,
     dts: u32,
     payload: &[u8],
-) -> SegmentReadResult<PaletteDefinitionSegment> {
+) -> ReadResult<PaletteDefinitionSegment> {
 
     let mut input = Cursor::new(payload);
     let count = (payload.len() - 2) / 5;
@@ -241,7 +249,7 @@ fn parse_ods(
     pts: u32,
     dts: u32,
     payload: &[u8],
-) -> SegmentReadResult<ObjectDefinitionSegment> {
+) -> ReadResult<ObjectDefinitionSegment> {
 
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
@@ -252,12 +260,15 @@ fn parse_ods(
         0x40 => Sequence::Last,
         _ => return Err(ReadError::UnrecognizedObjectSequenceFlag),
     };
-    let data_size = input.read_u24::<BigEndian>()? as usize;
+
+    // I have no idea why PGS streams record +4 bytes for the object data size, but they do.
+    if input.read_u24::<BigEndian>()? as usize - 4 != payload.len() - 11 {
+        return Err(ReadError::InvalidObjectDataLength)
+    }
+
     let width = input.read_u16::<BigEndian>()?;
     let height = input.read_u16::<BigEndian>()?;
-    let mut data = vec![0u8; (data_size - 4).max(0)];
-
-    input.read_exact(&mut data)?;
+    let lines = rle_decompress(&input.into_inner()[11..])?;
 
     Ok(
         ObjectDefinitionSegment {
@@ -268,7 +279,97 @@ fn parse_ods(
             sequence,
             width,
             height,
-            data,
+            lines,
         }
     )
+}
+
+fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
+
+    let mut output = Vec::<Vec<u8>>::new();
+    let mut line = vec![];
+    let mut iter = input.iter();
+
+    loop {
+        match iter.next() {
+            Some(byte_1) => {
+                if *byte_1 == 0x00 {
+                    match iter.next() {
+                        Some(byte_2) => {
+                            if *byte_2 == 0x00 {
+                                output.push(line);
+                                line = vec![];
+                            } else if *byte_2 >> 6 == 0 {
+                                for _ in 0..(*byte_2 & 0x3F) {
+                                    line.push(0);
+                                }
+                            } else if *byte_2 >> 6 == 1 {
+                                match iter.next() {
+                                    Some(byte_3) => {
+                                        for _ in 0..(
+                                            (*byte_2 as u16 & 0x3F) << 8
+                                            | *byte_3 as u16
+                                        ) {
+                                            line.push(0);
+                                        }
+                                    }
+                                    None => {
+                                        return Err(ReadError::IncompleteRleSequence)
+                                    }
+                                }
+                            } else if *byte_2 >> 6 == 2 {
+                                match iter.next() {
+                                    Some(byte_3) => {
+                                        for _ in 0..(*byte_2 & 0x3F) {
+                                            line.push(*byte_3);
+                                        }
+                                    }
+                                    None => {
+                                        return Err(ReadError::IncompleteRleSequence)
+                                    }
+                                }
+                            } else if *byte_2 >> 6 == 3 {
+                                match iter.next() {
+                                    Some(byte_3) => {
+                                        match iter.next() {
+                                            Some(byte_4) => {
+                                                for _ in 0..(
+                                                    (*byte_2 as u16 & 0x3F) << 8
+                                                    | *byte_3 as u16
+                                                ) {
+                                                    line.push(*byte_4);
+                                                }
+                                            }
+                                            None => {
+                                                return Err(ReadError::IncompleteRleSequence)
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        return Err(ReadError::IncompleteRleSequence)
+                                    }
+                                }
+                            } else {
+                                return Err(ReadError::InvalidRleSequence)
+                            }
+                        }
+                        None => {
+                            return Err(ReadError::IncompleteRleSequence)
+                        }
+                    }
+                } else {
+                    line.push(*byte_1);
+                }
+            }
+            None => {
+                break
+            }
+        }
+    }
+
+    if !line.is_empty() {
+        return Err(ReadError::IncompleteRleLine)
+    }
+
+    Ok(output)
 }

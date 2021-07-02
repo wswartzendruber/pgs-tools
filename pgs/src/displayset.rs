@@ -47,4 +47,7 @@ pub struct PaletteEntry {
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Object {
+    pub width: u16,
+    pub height: u16,
+    pub lines: Vec<Vec<u8>>,
 }
