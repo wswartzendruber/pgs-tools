@@ -113,6 +113,9 @@ fn main() {
                             Sequence::First => "FIRST",
                             Sequence::Last => "LAST",
                         });
+                        println!("  object_width = {}", ods.width);
+                        println!("  object_height = {}", ods.height);
+                        println!("  object_data = [{} lines]", ods.lines.len());
                     }
                     Segment::PaletteDefinition(pds) => {
                         println!("palette_definition_segment({})", ts_to_timestamp(pds.pts));
