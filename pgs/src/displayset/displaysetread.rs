@@ -6,8 +6,10 @@
 
 use super::{
     DisplaySet,
+    Object,
     Palette,
     PaletteEntry,
+    Vid,
     Window,
     super::segment::{
         ReadError as SegmentReadError,
@@ -53,7 +55,8 @@ impl<T: Read> ReadDisplaySetExt for T {
     fn read_display_set(&mut self) -> DisplaySetReadResult<DisplaySet> {
 
         let mut windows = BTreeMap::<u8, Window>::new();
-        let mut palettes = BTreeMap::<u8, Palette>::new();
+        let mut palettes = BTreeMap::<Vid, Palette>::new();
+        let mut objects = BTreeMap::<Vid, Object>::new();
         let first_seg = self.read_segment()?;
         let pcs = match first_seg {
             Segment::PresentationComposition(pcs) => pcs,
@@ -100,9 +103,11 @@ impl<T: Read> ReadDisplaySetExt for T {
                         return Err(DisplaySetReadError::InconsistentDts)
                     }
                     palettes.insert(
-                        pds.id,
-                        Palette {
+                        Vid {
+                            id: pds.id,
                             version: pds.version,
+                        },
+                        Palette {
                             entries: pds.entries.iter().map(|pe| (pe.id,
                                 PaletteEntry {
                                     y: pe.y,
@@ -141,6 +146,7 @@ impl<T: Read> ReadDisplaySetExt for T {
                 dts,
                 windows,
                 palettes,
+                objects,
             }
         )
     }
