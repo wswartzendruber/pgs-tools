@@ -14,14 +14,29 @@ pub use displaysetread::*;
 //pub use displaysetwrite::*;
 
 use std::collections::BTreeMap;
+use super::segment::Crop;
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct DisplaySet {
     pub pts: u32,
     pub dts: u32,
+    pub compositions: BTreeMap<Cid, Composition>,
     pub windows: BTreeMap<u8, Window>,
     pub palettes: BTreeMap<Vid<u8>, Palette>,
     pub objects: BTreeMap<Vid<u16>, Object>,
+}
+
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Cid {
+    pub object_id: u16,
+    pub window_id: u8,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
+pub struct Composition {
+    pub x: u16,
+    pub y: u16,
+    pub crop: Option<Crop>,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]

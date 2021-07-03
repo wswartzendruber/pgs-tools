@@ -8,5 +8,6 @@
 members = [
     "pgsmod",
     "pgsdump",
+    "pgstest",
     "pgs",
 ]
