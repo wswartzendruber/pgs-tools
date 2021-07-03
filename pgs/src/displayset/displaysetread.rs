@@ -55,8 +55,8 @@ impl<T: Read> ReadDisplaySetExt for T {
     fn read_display_set(&mut self) -> DisplaySetReadResult<DisplaySet> {
 
         let mut windows = BTreeMap::<u8, Window>::new();
-        let mut palettes = BTreeMap::<Vid, Palette>::new();
-        let mut objects = BTreeMap::<Vid, Object>::new();
+        let mut palettes = BTreeMap::<Vid<u8>, Palette>::new();
+        let mut objects = BTreeMap::<Vid<u16>, Object>::new();
         let first_seg = self.read_segment()?;
         let pcs = match first_seg {
             Segment::PresentationComposition(pcs) => pcs,
@@ -126,7 +126,17 @@ impl<T: Read> ReadDisplaySetExt for T {
                     if ods.dts != dts {
                         return Err(DisplaySetReadError::InconsistentDts)
                     }
-                    // TODO
+                    objects.insert(
+                        Vid {
+                            id: ods.id,
+                            version: ods.version,
+                        },
+                        Object {
+                            width: ods.width,
+                            height: ods.height,
+                            lines: ods.lines,
+                        }
+                    );
                 }
                 Segment::End(es) => {
                     if es.pts != pts {

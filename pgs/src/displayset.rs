@@ -20,8 +20,8 @@ pub struct DisplaySet {
     pub pts: u32,
     pub dts: u32,
     pub windows: BTreeMap<u8, Window>,
-    pub palettes: BTreeMap<Vid, Palette>,
-    pub objects: BTreeMap<Vid, Object>,
+    pub palettes: BTreeMap<Vid<u8>, Palette>,
+    pub objects: BTreeMap<Vid<u16>, Object>,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
@@ -54,7 +54,7 @@ pub struct Object {
 
 
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Vid {
-    pub id: u8,
+pub struct Vid<T> {
+    pub id: T,
     pub version: u8,
 }
