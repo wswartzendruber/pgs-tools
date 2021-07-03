@@ -7,6 +7,7 @@
 use super::{
     Cid,
     Composition,
+    CompositionObject,
     DisplaySet,
     Object,
     Palette,
@@ -52,6 +53,8 @@ pub enum ReadError {
     CompositionReferencesUnknownObjectId,
     #[error("composition references unknown window ID")]
     CompositionReferencesUnknownWindowId,
+    #[error("palette update references unknown palette ID")]
+    PaletteUpdateReferencesUnknownPaletteId,
 }
 
 pub trait ReadDisplaySetExt {
@@ -65,7 +68,7 @@ impl<T: Read> ReadDisplaySetExt for T {
         let mut windows = BTreeMap::<u8, Window>::new();
         let mut palettes = BTreeMap::<Vid<u8>, Palette>::new();
         let mut objects = BTreeMap::<Vid<u16>, Object>::new();
-        let mut compositions = BTreeMap::<Cid, Composition>::new();
+        let mut composition_objects = BTreeMap::<Cid, CompositionObject>::new();
         let first_seg = self.read_segment()?;
         let pcs = match first_seg {
             Segment::PresentationComposition(pcs) => pcs,
@@ -121,14 +124,14 @@ impl<T: Read> ReadDisplaySetExt for T {
                     palettes.insert(
                         vid,
                         Palette {
-                            entries: pds.entries.iter().map(|pe| (pe.id,
-                                PaletteEntry {
+                            entries: pds.entries.iter().map(|pe|
+                                (pe.id, PaletteEntry {
                                     y: pe.y,
                                     cr: pe.cr,
                                     cb: pe.cb,
                                     alpha: pe.alpha,
-                                }
-                            )).collect::<BTreeMap<u8, PaletteEntry>>()
+                                })
+                            ).collect::<BTreeMap<u8, PaletteEntry>>()
                         },
                     );
                 }
@@ -151,6 +154,7 @@ impl<T: Read> ReadDisplaySetExt for T {
                         Object {
                             width: ods.width,
                             height: ods.height,
+                            sequence: ods.sequence,
                             lines: ods.lines,
                         },
                     );
@@ -174,12 +178,12 @@ impl<T: Read> ReadDisplaySetExt for T {
             if !windows.contains_key(&co.window_id) {
                 return Err(ReadError::CompositionReferencesUnknownWindowId)
             }
-            compositions.insert(
+            composition_objects.insert(
                 Cid {
                     object_id: co.object_id,
                     window_id: co.window_id,
                 },
-                Composition {
+                CompositionObject {
                     x: co.x,
                     y: co.y,
                     crop: co.crop.clone(),
@@ -187,14 +191,34 @@ impl<T: Read> ReadDisplaySetExt for T {
             );
         }
 
+        let composition = Composition {
+            number: pcs.composition_number,
+            state: pcs.composition_state,
+            objects: composition_objects,
+        };
+
+        match pcs.palette_update_id {
+            Some(palette_update_id) => {
+                if !palettes.keys().any(|vid| vid.id == palette_update_id) {
+                    return Err(ReadError::PaletteUpdateReferencesUnknownPaletteId)
+                }
+            }
+            None => {
+            }
+        }
+
         Ok(
             DisplaySet {
                 pts,
                 dts,
-                compositions,
+                width: pcs.width,
+                height: pcs.height,
+                frame_rate: pcs.frame_rate,
+                palette_update_id: pcs.palette_update_id,
                 windows,
                 palettes,
                 objects,
+                composition,
             }
         )
     }
