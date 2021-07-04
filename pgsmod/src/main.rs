@@ -7,6 +7,7 @@
 mod rgb;
 
 use pgs::{
+    ts_to_timestamp,
     displayset::{
         DisplaySet,
         ReadDisplaySetExt,
@@ -287,6 +288,24 @@ fn main() {
                 window.y,
                 margin,
             );
+        }
+
+        for (window_id_1, window_1) in display_set.windows.iter() {
+            for (window_id_2, window_2) in display_set.windows.iter() {
+                if window_id_1 != window_id_2 {
+
+                    let window_1_ex = window_1.x + window_1.width;
+                    let window_1_ey = window_1.y + window_1.height;
+
+                    if window_1.x <= window_2.x && window_2.x <= window_1_ex
+                        && window_1.y <= window_2.y && window_2.y <= window_1_ey {
+                        panic!(
+                            "window collision detected at {}",
+                            ts_to_timestamp(display_set.pts),
+                        )
+                    }
+                }
+            }
         }
 
         match tone_ratio {
