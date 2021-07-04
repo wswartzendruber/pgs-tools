@@ -6,11 +6,16 @@
 
 mod rgb;
 
-use pgs::segment::{
-    ReadSegmentExt,
-    Segment,
-    ReadError,
-    WriteSegmentExt,
+use pgs::{
+    displayset::{
+        DisplaySet,
+        ReadDisplaySetExt,
+        ReadError as DisplaySetReadError,
+        WriteDisplaySetExt,
+    },
+    segment::{
+        ReadError as SegmentReadError,
+    },
 };
 use rgb::{rgb_linear_pixel, ycbcr_gamma_pixel, YcbcrGammaPixel};
 use std::{
@@ -18,12 +23,6 @@ use std::{
     io::{stdin, stdout, BufReader, BufWriter, ErrorKind, Read, Write},
 };
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
-
-#[derive(Eq, Hash, PartialEq)]
-struct ObjHandle {
-    composition_number: u16,
-    object_id: u16,
-}
 
 #[derive(Clone, Copy, PartialEq)]
 struct Size {
@@ -149,9 +148,9 @@ fn main() {
             &mut file_write
         }
     );
-    let mut segs = Vec::<Segment>::new();
+    let mut display_sets = Vec::<DisplaySet>::new();
 
-    eprintln!("Reading PGS segments into memory...");
+    eprintln!("Reading PGS display sets into memory...");
 
     //
     // READ
@@ -159,24 +158,34 @@ fn main() {
 
     loop {
 
-        let segment = match input.read_segment() {
-            Ok(segment) => {
-                segment
+        let display_set = match input.read_display_set() {
+            Ok(ds) => {
+                ds
             }
             Err(err) => {
                 match err {
-                    ReadError::IoError { source } => {
-                        if source.kind() != ErrorKind::UnexpectedEof {
-                            panic!("Could not read segment due to IO error: {}", source)
+                    DisplaySetReadError::SegmentError { source } => {
+                        match source {
+                            SegmentReadError::IoError { source } => {
+                                if source.kind() != ErrorKind::UnexpectedEof {
+                                    panic!("Could not read segment due to IO error: {}", source)
+                                }
+                            }
+                            _ => {
+                                panic!(
+                                    "Could not read display set due to segment error: {}",
+                                    source,
+                                )
+                            }
                         }
                     }
-                    _ => panic!("Could not read segment due to bitstream error: {}", err)
+                    _ => panic!("Could not read display set due to bitstream error: {}", err)
                 }
                 break
             }
         };
 
-        segs.push(segment);
+        display_sets.push(display_set);
     }
 
     //
@@ -184,23 +193,31 @@ fn main() {
     //
 
     let mut max_channel = 0.0_f64;
+    let mut screen_sizes = Vec::<Size>::new();
 
-    eprintln!("Reading palette definitions...");
+    eprintln!("Inventorying display sets...");
 
-    for segment in segs.iter() {
-        match &segment {
-            Segment::PaletteDefinition(pds) => {
-                for pde in pds.entries.iter() {
+    for display_set in display_sets.iter() {
 
-                    let rgb = rgb_linear_pixel(
-                        YcbcrGammaPixel { y: pde.y, cb: pde.cb, cr: pde.cr }
-                    );
+        let screen_size = Size {
+            width: display_set.width,
+            height: display_set.height,
+        };
 
-                    max_channel = max_channel.max(rgb.red).max(rgb.green).max(rgb.blue);
-                }
-            }
-            _ => {
-                ()
+        if !screen_sizes.contains(&screen_size) {
+            eprintln!(
+                "New resolution encountered: {}x{}",
+                screen_size.width, screen_size.height,
+            );
+            screen_sizes.push(screen_size);
+        }
+
+        for palette in display_set.palettes.values() {
+            for entry in palette.entries.values() {
+                let rgb = rgb_linear_pixel(
+                    YcbcrGammaPixel { y: entry.y, cb: entry.cb, cr: entry.cr }
+                );
+                max_channel = max_channel.max(rgb.red).max(rgb.green).max(rgb.blue);
             }
         }
     }
@@ -209,8 +226,6 @@ fn main() {
         Some(x) => Some(max_channel / x),
         None => None,
     };
-    let mut screen_sizes = Vec::<Size>::new();
-    let mut screen_full_size = Size { width: 0, height: 0 };
 
     //
     // MODIFY
@@ -218,60 +233,81 @@ fn main() {
 
     eprintln!("Performing modifications...");
 
-    for segment in segs.iter_mut() {
-        match segment {
-            Segment::PresentationComposition(pcs) => {
-                screen_full_size = Size { width: pcs.width, height: pcs.height };
-                if !screen_sizes.contains(&screen_full_size) {
-                    eprintln!(
-                        "New resolution encountered: {}x{}",
-                        screen_full_size.width, screen_full_size.height,
-                    );
-                    screen_sizes.push(screen_full_size);
-                }
-                pcs.width = crop_width;
-                pcs.height = crop_height;
-            }
-            Segment::WindowDefinition(wds) => {
-                for wd in wds.windows.iter_mut() {
-                    wd.x = cropped_window_offset(
-                        screen_full_size.width,
-                        crop_width,
-                        wd.width,
-                        wd.x,
-                        margin,
-                    );
-                    wd.y = cropped_window_offset(
-                        screen_full_size.height,
-                        crop_height,
-                        wd.height,
-                        wd.y,
-                        margin,
-                    );
-                }
-            }
-            Segment::PaletteDefinition(pds) => {
-                match tone_ratio {
-                    Some(x) => {
-                        for pde in pds.entries.iter_mut() {
-                            let mut rgb = rgb_linear_pixel(
-                                YcbcrGammaPixel { y: pde.y, cb: pde.cb, cr: pde.cr }
-                            );
-                            rgb.red /= x;
-                            rgb.green /= x;
-                            rgb.blue /= x;
-                            let ycbcr = ycbcr_gamma_pixel(rgb);
-                            pde.y = ycbcr.y;
-                            pde.cb = ycbcr.cb;
-                            pde.cr = ycbcr.cr;
-                        }
+    for display_set in display_sets.iter_mut() {
+
+        let full_width = display_set.width;
+        let full_height = display_set.height;
+
+        display_set.width = crop_width;
+        display_set.height = crop_height;
+
+        for (cid, composition_object) in display_set.composition.objects.iter_mut() {
+
+            let object_sizes = display_set.objects.iter()
+                .filter(|(object_vid, _)| object_vid.id == cid.object_id)
+                .map(|(_, object)| Size { width: object.width, height: object.height })
+                .collect::<Vec<Size>>();
+            let object_width = object_sizes.iter()
+                .map(|size| size.width)
+                .max()
+                .unwrap();
+            let object_height = object_sizes.iter()
+                .map(|size| size.height)
+                .max()
+                .unwrap();
+
+            composition_object.x = cropped_offset(
+                full_width,
+                crop_width,
+                object_width,
+                composition_object.x,
+                margin,
+            );
+            composition_object.y = cropped_offset(
+                full_height,
+                crop_height,
+                object_height,
+                composition_object.y,
+                margin,
+            );
+        }
+
+        for window in display_set.windows.values_mut() {
+            window.x = cropped_offset(
+                full_width,
+                crop_width,
+                window.width,
+                window.x,
+                margin,
+            );
+            window.y = cropped_offset(
+                full_height,
+                crop_height,
+                window.height,
+                window.y,
+                margin,
+            );
+        }
+
+        match tone_ratio {
+            Some(x) => {
+                for palette in display_set.palettes.values_mut() {
+                    for entry in palette.entries.values_mut() {
+                        let mut rgb = rgb_linear_pixel(
+                            YcbcrGammaPixel { y: entry.y, cb: entry.cb, cr: entry.cr }
+                        );
+                        rgb.red /= x;
+                        rgb.green /= x;
+                        rgb.blue /= x;
+                        let ycbcr = ycbcr_gamma_pixel(rgb);
+                        entry.y = ycbcr.y;
+                        entry.cb = ycbcr.cb;
+                        entry.cr = ycbcr.cr;
                     }
-                    None => {
-                        ()
-                    }
                 }
             }
-            _ => ()
+            None => {
+            }
         }
     }
 
@@ -279,37 +315,37 @@ fn main() {
     // WRITE
     //
 
-    eprintln!("Writing modified segments...");
+    eprintln!("Writing modified display sets...");
 
-    for segment in segs {
-        if let Err(err) = output.write_segment(&segment) {
-            panic!("Could not write frame to output stream: {:?}", err)
+    for display_set in display_sets {
+        if let Err(err) = output.write_display_set(&display_set) {
+            panic!("Could not write display set to output stream: {:?}", err)
         }
     }
 
     output.flush().expect("Could not flush output stream.");
 }
 
-fn cropped_window_offset(
+fn cropped_offset(
     screen_full_size: u16,
     screen_crop_size: u16,
-    window_size: u16,
-    window_offset: u16,
+    size: u16,
+    offset: u16,
     margin: u16,
 ) -> u16 {
 
-    if window_size + 2 * margin > screen_crop_size {
+    if size + 2 * margin > screen_crop_size {
         eprintln!("WARNING: Window cannot fit within new margins.");
         return 0
     }
 
-    let new_offset = window_offset - (screen_full_size - screen_crop_size) / 2;
+    let new_offset = offset - (screen_full_size - screen_crop_size) / 2;
 
     match new_offset {
         o if o < margin =>
             margin,
-        o if o + window_size + margin > screen_crop_size =>
-            screen_crop_size - window_size - margin,
+        o if o + size + margin > screen_crop_size =>
+            screen_crop_size - size - margin,
         _ =>
             new_offset,
     }
