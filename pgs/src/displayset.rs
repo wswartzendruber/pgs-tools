@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: OSL-3.0
  */
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 mod displaysetread;
 mod displaysetwrite;
