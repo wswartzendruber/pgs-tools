@@ -8,40 +8,40 @@
 mod tests;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct YcbcrGammaPixel {
+pub struct YcbcrPixel {
     pub y: u8,
     pub cb: u8,
     pub cr: u8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RgbLinearPixel {
+pub struct RgbPixel {
     pub red: f64,
     pub green: f64,
     pub blue: f64,
 }
 
-pub fn rgb_linear_pixel(input: YcbcrGammaPixel) -> RgbLinearPixel {
+pub fn rgb_pixel(input: YcbcrPixel) -> RgbPixel {
 
-    let y = bt1886_eotf(expand(input.y as f64 / 255.0));
+    let y = expand(input.y as f64 / 255.0);
     let cb = (input.cb as f64 - 128.0) / 128.0;
     let cr = (input.cr as f64 - 128.0) / 128.0;
 
-    RgbLinearPixel {
+    RgbPixel {
         red:   y + 1.28033 * cr,
         green: y - 0.21482 * cb - 0.38059 * cr,
         blue:  y + 2.12798 * cb,
     }
 }
 
-pub fn ycbcr_gamma_pixel(rgb: RgbLinearPixel) -> YcbcrGammaPixel {
-    YcbcrGammaPixel {
+pub fn ycbcr_pixel(rgb: RgbPixel) -> YcbcrPixel {
+    YcbcrPixel {
         y:
-           ((compress(bt1886_oetf(
+           ((compress(
                 0.2126 * rgb.red
                 + 0.7152 * rgb.green
                 + 0.0722 * rgb.blue
-            )) * 255.0) - 0.25).max(0.0).min(255.0).round() as u8,
+            ) * 255.0) - 0.25).max(0.0).min(255.0).round() as u8,
             // The '- 0.25' is an absolutely ridiculous hack to ensure that all possible YCbCr
             // combinations map to RGB and back to their original values.
         cb:
@@ -59,14 +59,6 @@ pub fn ycbcr_gamma_pixel(rgb: RgbLinearPixel) -> YcbcrGammaPixel {
                 + 1.0
             ) * 128.0).max(0.0).min(255.0).round() as u8,
     }
-}
-
-fn bt1886_eotf(v: f64) -> f64 {
-    v.powf(2.4).max(0.0).min(1.0)
-}
-
-fn bt1886_oetf(l: f64) -> f64 {
-    l.powf(0.4166666666666667).max(0.0).min(1.0)
 }
 
 fn compress(value: f64) -> f64 {

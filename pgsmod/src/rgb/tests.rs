@@ -13,9 +13,9 @@ fn test_every_possible_yuv_combination() {
         for cb in 0..=255 {
             for cr in 0..=255 {
 
-                let yuv = YcbcrGammaPixel { y, cb, cr };
+                let yuv = YcbcrPixel { y, cb, cr };
 
-                assert_eq!(yuv, ycbcr_gamma_pixel(rgb_linear_pixel(yuv)));
+                assert_eq!(yuv, ycbcr_pixel(rgb_pixel(yuv)));
             }
         }
     }
