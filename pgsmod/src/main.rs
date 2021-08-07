@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: OSL-3.0
  */
 
+#[cfg(test)]
+mod tests;
+
 mod rgb;
 
 use pgs::{
@@ -39,7 +42,7 @@ fn main() {
             .value_name("PIXELS")
             .help("Width to crop each subtitle frame to")
             .takes_value(true)
-            .required(true)
+            .required(false)
             .validator(|value| {
                 if value.parse::<usize>().is_ok() {
                     Ok(())
@@ -54,7 +57,39 @@ fn main() {
             .value_name("PIXELS")
             .help("Height to crop each subtitle frame to")
             .takes_value(true)
-            .required(true)
+            .required(false)
+            .validator(|value| {
+                if value.parse::<usize>().is_ok() {
+                    Ok(())
+                } else {
+                    Err("must be an unsigned integer".to_string())
+                }
+            })
+        )
+        .arg(Arg::with_name("crop-x")
+            .long("crop-x")
+            .short("x")
+            .value_name("PIXELS")
+            .help("Horizontal offset of the cropped frame")
+            .takes_value(true)
+            .required(false)
+            .requires("crop-width")
+            .validator(|value| {
+                if value.parse::<usize>().is_ok() {
+                    Ok(())
+                } else {
+                    Err("must be an unsigned integer".to_string())
+                }
+            })
+        )
+        .arg(Arg::with_name("crop-y")
+            .long("crop-y")
+            .short("y")
+            .value_name("PIXELS")
+            .help("Vertical offset of the cropped frame")
+            .takes_value(true)
+            .required(false)
+            .requires("crop-height")
             .validator(|value| {
                 if value.parse::<usize>().is_ok() {
                     Ok(())
@@ -121,8 +156,22 @@ fn main() {
             Licensed under the Open Software License version 3.0\n\
             <{}>", env!("CARGO_PKG_REPOSITORY")).as_str())
         .get_matches();
-    let crop_width = matches.value_of("crop-width").unwrap().parse::<u16>().unwrap();
-    let crop_height = matches.value_of("crop-height").unwrap().parse::<u16>().unwrap();
+    let crop_width = match matches.value_of("crop-width") {
+        Some(cw) => Some(cw.parse::<u16>().unwrap()),
+        None => None
+    };
+    let crop_height = match matches.value_of("crop-height") {
+        Some(ch) => Some(ch.parse::<u16>().unwrap()),
+        None => None
+    };
+    let crop_x = match matches.value_of("crop-x") {
+        Some(cx) => Some(cx.parse::<u16>().unwrap()),
+        None => None
+    };
+    let crop_y = match matches.value_of("crop-y") {
+        Some(cy) => Some(cy.parse::<u16>().unwrap()),
+        None => None
+    };
     let margin = matches.value_of("margin").unwrap().parse::<u16>().unwrap();
     let lum_scale = match matches.value_of("lum-scale") {
         Some(factor) => Some(factor.parse::<f64>().unwrap()),
@@ -159,11 +208,9 @@ fn main() {
         match &mut input.read_display_set() {
             Ok(display_set) => {
 
-                let full_width = display_set.width;
-                let full_height = display_set.height;
                 let screen_size = Size {
-                    width: full_width,
-                    height: full_height,
+                    width: display_set.width,
+                    height: display_set.height,
                 };
 
                 if !screen_sizes.contains(&screen_size) {
@@ -174,8 +221,14 @@ fn main() {
                     screen_sizes.push(screen_size);
                 }
 
-                display_set.width = crop_width;
-                display_set.height = crop_height;
+                match crop_width {
+                    Some(cw) => display_set.width = cw,
+                    None => (),
+                }
+                match crop_height {
+                    Some(ch) => display_set.height = ch,
+                    None => (),
+                }
 
                 for (cid, composition_object) in display_set.composition.objects.iter_mut() {
 
@@ -192,37 +245,73 @@ fn main() {
                         .max()
                         .unwrap();
 
-                    composition_object.x = cropped_offset(
-                        full_width,
-                        crop_width,
-                        object_width,
-                        composition_object.x,
-                        margin,
-                    );
-                    composition_object.y = cropped_offset(
-                        full_height,
-                        crop_height,
-                        object_height,
-                        composition_object.y,
-                        margin,
-                    );
+                    match crop_width {
+                        Some(cw) => {
+                            composition_object.x = new_item_offset(
+                                screen_size.width,
+                                match crop_x {
+                                    Some(cx) => cx,
+                                    None => (screen_size.width - cw) / 2,
+                                },
+                                object_width,
+                                composition_object.x,
+                                margin,
+                            );
+                        }
+                        None => {
+                        }
+                    }
+                    match crop_height {
+                        Some(ch) => {
+                            composition_object.y = new_item_offset(
+                                screen_size.height,
+                                match crop_y {
+                                    Some(cy) => cy,
+                                    None => (screen_size.height - ch) / 2,
+                                },
+                                object_height,
+                                composition_object.y,
+                                margin,
+                            );
+                        }
+                        None => {
+                        }
+                    }
                 }
 
                 for window in display_set.windows.values_mut() {
-                    window.x = cropped_offset(
-                        full_width,
-                        crop_width,
-                        window.width,
-                        window.x,
-                        margin,
-                    );
-                    window.y = cropped_offset(
-                        full_height,
-                        crop_height,
-                        window.height,
-                        window.y,
-                        margin,
-                    );
+                    match crop_width {
+                        Some(cw) => {
+                            window.x = new_item_offset(
+                                screen_size.width,
+                                match crop_x {
+                                    Some(cx) => cx,
+                                    None => (screen_size.width - cw) / 2,
+                                },
+                                window.width,
+                                window.x,
+                                margin,
+                            );
+                        }
+                        None => {
+                        }
+                    }
+                    match crop_height {
+                        Some(ch) => {
+                            window.y = new_item_offset(
+                                screen_size.height,
+                                match crop_y {
+                                    Some(cy) => cy,
+                                    None => (screen_size.height - ch) / 2,
+                                },
+                                window.height,
+                                window.y,
+                                margin,
+                            );
+                        }
+                        None => {
+                        }
+                    }
                 }
 
                 for (window_id_1, window_1) in display_set.windows.iter() {
@@ -293,27 +382,22 @@ fn main() {
     }
 }
 
-fn cropped_offset(
-    screen_full_size: u16,
-    screen_crop_size: u16,
-    size: u16,
-    offset: u16,
+fn new_item_offset(
+    screen_size: u16,
+    screen_offset: u16,
+    item_size: u16,
+    item_offset: u16,
     margin: u16,
 ) -> u16 {
-
-    if size + 2 * margin > screen_crop_size {
-        eprintln!("WARNING: Window cannot fit within new margins.");
-        return 0
-    }
-
-    let new_offset = offset - (screen_full_size - screen_crop_size) / 2;
-
-    match new_offset {
-        o if o < margin =>
-            margin,
-        o if o + size + margin > screen_crop_size =>
-            screen_crop_size - size - margin,
-        _ =>
-            new_offset,
+    if item_size > screen_size - 2 * margin {
+        panic!("Object does not fit within new screen dimensions.")
+    } else if item_offset < screen_offset + margin {
+        margin
+    } else {
+        if item_offset - screen_offset + item_size > screen_size - margin {
+            screen_size - item_size - margin
+        } else {
+            item_offset - screen_offset
+        }
     }
 }
