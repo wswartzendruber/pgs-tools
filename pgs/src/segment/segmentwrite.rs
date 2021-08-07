@@ -43,7 +43,9 @@ pub trait WriteSegmentExt {
     fn write_segment(&mut self, segment: &Segment) -> WriteResult<()>;
 }
 
-impl<T: Write> WriteSegmentExt for T {
+impl<T> WriteSegmentExt for T where
+    T: Write,
+{
 
     fn write_segment(&mut self, segment: &Segment) -> WriteResult<()> {
 

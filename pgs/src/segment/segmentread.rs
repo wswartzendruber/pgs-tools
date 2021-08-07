@@ -59,7 +59,9 @@ pub trait ReadSegmentExt {
     fn read_segment(&mut self) -> ReadResult<Segment>;
 }
 
-impl<T: Read> ReadSegmentExt for T {
+impl<T> ReadSegmentExt for T where
+    T: Read,
+{
 
     fn read_segment(&mut self) -> ReadResult<Segment> {
 

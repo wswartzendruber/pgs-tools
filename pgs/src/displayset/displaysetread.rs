@@ -61,7 +61,9 @@ pub trait ReadDisplaySetExt {
     fn read_display_set(&mut self) -> ReadResult<DisplaySet>;
 }
 
-impl<T: Read> ReadDisplaySetExt for T {
+impl<T> ReadDisplaySetExt for T where
+    T: Read,
+{
 
     fn read_display_set(&mut self) -> ReadResult<DisplaySet> {
 

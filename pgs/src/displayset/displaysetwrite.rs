@@ -42,7 +42,9 @@ pub trait WriteDisplaySetExt {
     fn write_display_set(&mut self, display_set: &DisplaySet) -> WriteResult<()>;
 }
 
-impl<T: Write> WriteDisplaySetExt for T {
+impl<T> WriteDisplaySetExt for T where
+    T: Write,
+{
 
     fn write_display_set(&mut self, display_set: &DisplaySet) -> WriteResult<()> {
 
