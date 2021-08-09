@@ -24,35 +24,49 @@
 //! PGS works by defining a screen area for all captions to use. Within this area, window
 //! regions are defined. Objects are then placed within each window. Any number of windows may
 //! be in the screen area at a given time, but each window may have no more than two objects at
-//! a given time. It is also possible to display only a specific rectangular area of an object
+//! a given time. It is also possible to show only a specific rectangular area of an object
 //! inside of a window instead of the entire object.
+//!
+//! The process of rendering objects to the screen is known as composition.
 //!
 //! ## The Epoch
 //!
-//! The cycle for displaying a caption is called an epoch. Each epoch consists of multiple
-//! display sets. The first diplay set defines the windows and objects to be shown. Subsequent
-//! display sets may update the objects being shown, but the final display set ultimately
-//! removes the objects from the screen area.
+//! Conceptually, an epoch displays one or more captions to specific areas of the screen. As
+//! such, each one defines fixed window positions, but may swap out objects (or portions of
+//! objects) being shown in those windows as the epoch progresses.
+//!
+//! An epoch is composed of multiple display sets (DS).
 //!
 //! ## Display Sets
 //!
-//! A display set is composed of multiple segments. There are several types and they do things
-//! like mark the beginning of a display set, define windows, define objects, define colors, and
-//! mark the end of a display set.
+//! A display set (DS) is a set of instructions for how to compose an epoch throughout that
+//! epoch's lifetime. Each DS within an epoch has one of three roles:
+//!
+//! 1. Initiate a new epoch (define windows, objects, and palettes)
+//! 2. Refresh the player regarding the current epoch (should the player seek past the first DS)
+//! 3. Make changes to the current epoch, including tearing it down
+//!
+//! A DS is composed of multiple segments.
 //!
 //! ## Segments
 //!
-//! A segment is a structure of well-defined properties. Some of these properties are optional
-//! and may not apply to a given case.
+//! A segment defines a specific set of properties for a display set (DS). There are five types
+//! of segments, according to the properties each one defines. One defines properties for the
+//! entire DS, another defines windows, a third defines objects, a fourth defines palettes, and
+//! a fifth is used to signal the end of the current DS.
+//!
+//! Segments are separated because each type is not always needed. A DS that only updates the
+//! color palettes of existing objects on the screen, for example, does not need to define new
+//! objects or windows.
 //!
 //! # Using this Crate
 //!
 //! This crate supports two separate levels of PGS abstraction. That is, a user may choose to
-//! operate on either complete display sets or on individual segments, depending on what they
-//! are trying to achieve. The segment API, for example, is more suited towards writing
+//! operate on either complete display sets (DS) or on individual segments, depending on what
+//! they are trying to achieve. The segment API, for example, is more suited towards writing
 //! diagnostics tooling and other low level components. The display set API, on the other hand,
 //! is more suited towards writing tooling that modifies stream properties, like window
-//! positioning and object colors.
+//! positions and object colors.
 
 pub mod displayset;
 pub mod segment;
