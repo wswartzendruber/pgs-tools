@@ -125,37 +125,60 @@ pub struct PresentationCompositionSegment {
     /// The timestamp indicating when the composition should be displayed. In practice, this
     /// value is always zero.
     pub dts: u32,
-    /// The width of the display in pixels. This value should be consistent within a
+    /// The width of the screen in pixels. This value should be consistent within a
     /// presentation.
     pub width: u16,
-    /// The height of the display in pixels. This value should be consistent within a
+    /// The height of the screen in pixels. This value should be consistent within a
     /// presentation.
     pub height: u16,
-    /// This value should be set to `0x10` and can typically be ignored.
+    /// This value should be set to `0x10` but can otherwise be typically ignored.
     pub frame_rate: u8,
+    /// Starting at zero, this increments each time graphics are updated within an epoch.
     pub composition_number: u16,
+    /// Defines the role of the current DS within the larger epoch.
     pub composition_state: CompositionState,
+    /// If set, indicates the ID of a preceding palette to be updated within the epoch.
     pub palette_update_id: Option<u8>,
+    /// Maps an epoch's objects (or areas within them) to its windows.
     pub composition_objects: Vec<CompositionObject>,
 }
 
+/// Defines a mapping between an object (or an area of one) and a window within an epoch.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct CompositionObject {
+    /// The ID of the object within the epoch.
     pub object_id: u16,
+    /// The ID of the window within the epoch.
     pub window_id: u8,
+    /// The horizontal offset of the object's top-left corner relative to the top-left corner of
+    /// the screen. If the object is cropped, then this applies only to the visible area.
     pub x: u16,
+    /// The vertical offset of the object's top-left corner relative to the top-left corner of
+    /// the screen. If the object is cropped, then this applies only to the visible area.
     pub y: u16,
+    /// If set, defines the visible area of the object. Otherwise, the entire object is shown.
     pub crop: Option<Crop>,
 }
 
+/// Defines the specific area within an object to be shown.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Crop {
+    /// The horizontal offset of the area's top-left corner relative to the top-left corner of
+    /// the object itself.
     pub x: u16,
+    /// The vertical offset of the area's top-left corner relative to the top-left corner of the
+    /// object itself.
     pub y: u16,
+    /// The width of the area.
     pub width: u16,
+    /// The height of the area.
     pub height: u16,
 }
 
+/// Defines a Window Definition Segment (WDS).
+///
+/// A WDS lists window regions that are to be used within an epoch. Each DS that has a WDS
+/// should only have one.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct WindowDefinitionSegment {
     /// The timestamp indicating when composition decoding should start. In practice, this is
@@ -165,15 +188,24 @@ pub struct WindowDefinitionSegment {
     /// The timestamp indicating when the composition should be displayed. In practice, this
     /// value is always zero.
     pub dts: u32,
+    /// Defines the window regions within the screen for this epoch.
     pub windows: Vec<WindowDefinition>,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+/// Defines a window within the screen.
 pub struct WindowDefinition {
+    /// The ID of the window being defined within the epoch.
     pub id: u8,
+    /// The horizontal offset of the window's top-left corner relative to the top-left corner of
+    /// the screen.
     pub x: u16,
+    /// The vertical offset of the window's top-left corner relative to the top-left corner of
+    /// the screen.
     pub y: u16,
+    /// The width of the window.
     pub width: u16,
+    /// The height of the window.
     pub height: u16,
 }
 
