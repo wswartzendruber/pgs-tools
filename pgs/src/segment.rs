@@ -195,7 +195,7 @@ pub struct WindowDefinitionSegment {
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 /// Defines a window within the screen.
 pub struct WindowDefinition {
-    /// The ID of the window being defined within the epoch.
+    /// The ID of this window within the epoch.
     pub id: u8,
     /// The horizontal offset of the window's top-left corner relative to the top-left corner of
     /// the screen.
@@ -210,6 +210,7 @@ pub struct WindowDefinition {
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+/// Defines a set of palette entries within an epoch.
 pub struct PaletteDefinitionSegment {
     /// The timestamp indicating when composition decoding should start. In practice, this is
     /// the time at which the composition is displayed. All segments within a DS typically have
@@ -218,17 +219,31 @@ pub struct PaletteDefinitionSegment {
     /// The timestamp indicating when the composition should be displayed. In practice, this
     /// value is always zero.
     pub dts: u32,
+    /// The ID of this pallete set within the epoch.
     pub id: u8,
+    /// The version increment of this palette set.
     pub version: u8,
+    /// Defines the individual palette entries in this set.
     pub entries: Vec<PaletteEntry>,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+/// Defines a palette entry within a palette set.
 pub struct PaletteEntry {
+    /// The ID of this palette entry.
     pub id: u8,
+    /// The range-limited, gamma-corrected luminosity value of this entry. Black is represented
+    /// by a value of `16` while white is represented by a value of `235`. For standard Blu-ray
+    /// discs, the BT.709 gamma function is typically used. However, 4K UltraHD discs seem to
+    /// use the ST.2084 gamma function instead.
     pub y: u8,
+    /// The vertical position of this entry on the YCbCr color plane, starting from the bottom
+    /// and going up.
     pub cr: u8,
+    /// The horizontal position of this entry on the YCbCr color plane, starting from the left
+    /// and going to the right.
     pub cb: u8,
+    /// The alpha value (transparency ratio) of this entry.
     pub alpha: u8,
 }
 
