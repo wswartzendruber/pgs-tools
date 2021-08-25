@@ -28,24 +28,34 @@
 //! role of the DS within the larger epoch, the screen resolution, and initial mappings of
 //! objects to windows.
 //!
+//! See: [PresentationCompositionSegment]
+//!
 //! ## Window Definition Segment (WDS)
 //!
 //! A WDS defines the areas of the screen that will be used to show objects during the larger
 //! epoch. As a single WDS can define multiple windows, each DS should only have one.
+//!
+//! See: [WindowDefinitionSegment]
 //!
 //! ## Palette Definition Segment (PDS)
 //!
 //! A PDS contains a list of YCbCrA values with each one having a unique ID. A single DS can
 //! have multiple PDS segments.
 //!
+//! See: [PaletteDefinitionSegment]
+//!
 //! ## Object Definition Segment (ODS)
 //!
 //! An ODS defines a sequence of pixels with each pixel consisting of a single ID. These IDs map
 //! back to the pixel values encountered in earlier PDS segments.
 //!
+//! See: [ObjectDefinitionSegment]
+//!
 //! ## End Segment (ES)
 //!
 //! An ES signals that the current DS has come to an end.
+//!
+//! See: [EndSegment]
 
 #[cfg(test)]
 mod tests;
@@ -211,6 +221,10 @@ pub struct WindowDefinition {
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 /// Defines a set of palette entries within an epoch.
+///
+/// Palette entries can be broken apart into sets so that they can be modified as a group within
+/// an epoch. This can be used, for example, to provide a fade-out effect by continuously
+/// updating the palette entries referenced by an object currently on the screen.
 pub struct PaletteDefinitionSegment {
     /// The timestamp indicating when composition decoding should start. In practice, this is
     /// the time at which the composition is displayed. All segments within a DS typically have
@@ -229,19 +243,22 @@ pub struct PaletteDefinitionSegment {
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 /// Defines a palette entry within a palette set.
+///
+/// The role of a palette entry is to define or update exact pixel color, as later referenced by
+/// any objects also defined within an epoch.
 pub struct PaletteEntry {
-    /// The ID of this palette entry.
+    /// The ID of this palette entry, which should be unique within an epoch.
     pub id: u8,
     /// The range-limited, gamma-corrected luminosity value of this entry. Black is represented
     /// by a value of `16` while white is represented by a value of `235`. For standard Blu-ray
     /// discs, the BT.709 gamma function is typically used. However, 4K UltraHD discs seem to
     /// use the ST.2084 gamma function instead.
     pub y: u8,
-    /// The vertical position of this entry on the YCbCr color plane, starting from the bottom
-    /// and going up.
+    /// The vertical position of this entry on the YC<sub>b</sub>C<sub>r</sub> color plane,
+    /// starting from the bottom and going up.
     pub cr: u8,
-    /// The horizontal position of this entry on the YCbCr color plane, starting from the left
-    /// and going to the right.
+    /// The horizontal position of this entry on the YC<sub>b</sub>C<sub>r</sub> color plane,
+    /// starting from the left and going to the right.
     pub cb: u8,
     /// The alpha value (transparency ratio) of this entry.
     pub alpha: u8,
