@@ -10,18 +10,20 @@ mod tests;
 mod rgb;
 
 use pgs::{
-    ts_to_timestamp,
     displayset::{
+        Object,
         ReadDisplaySetExt,
         ReadError as DisplaySetReadError,
         WriteDisplaySetExt,
     },
     segment::{
+        CompositionState,
         ReadError as SegmentReadError,
     },
 };
 use rgb::{rgb_pixel, ycbcr_pixel, YcbcrPixel};
 use std::{
+    collections::HashMap,
     fs::File,
     io::{stdin, stdout, BufReader, BufWriter, ErrorKind, Read, Write},
 };
@@ -31,6 +33,11 @@ use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_v
 struct Size {
     width: u16,
     height: u16,
+}
+
+struct Crop {
+    offset: u16,
+    size: u16,
 }
 
 fn main() {
@@ -201,136 +208,116 @@ fn main() {
             &mut file_write
         }
     );
-    let mut screen_sizes = Vec::<Size>::new();
+    let mut screen_size = None;
+    let mut width_crop = None;
+    let mut height_crop = None;
 
     loop {
+
+        let mut objects = HashMap::<u16, Object>::new();
 
         match &mut input.read_display_set() {
             Ok(display_set) => {
 
-                let screen_size = Size {
+                //
+                // VALIDATE/SET SCREEN SIZE
+                //
+
+                let ds_size = Size {
                     width: display_set.width,
                     height: display_set.height,
                 };
 
-                if !screen_sizes.contains(&screen_size) {
-                    eprintln!(
-                        "New resolution encountered: {}x{}",
-                        screen_size.width, screen_size.height,
-                    );
-                    screen_sizes.push(screen_size);
-                }
-
-                match crop_width {
-                    Some(cw) => display_set.width = cw,
-                    None => (),
-                }
-                match crop_height {
-                    Some(ch) => display_set.height = ch,
-                    None => (),
-                }
-
-                for (cid, composition_object) in display_set.composition.objects.iter_mut() {
-
-                    let object_sizes = display_set.objects.iter()
-                        .filter(|(object_vid, _)| object_vid.id == cid.object_id)
-                        .map(|(_, object)| Size { width: object.width, height: object.height })
-                        .collect::<Vec<Size>>();
-                    let object_width = object_sizes.iter()
-                        .map(|size| size.width)
-                        .max()
-                        .unwrap();
-                    let object_height = object_sizes.iter()
-                        .map(|size| size.height)
-                        .max()
-                        .unwrap();
-
-                    match crop_width {
-                        Some(cw) => {
-                            composition_object.x = new_item_offset(
-                                screen_size.width,
-                                match crop_x {
-                                    Some(cx) => cx,
-                                    None => (screen_size.width - cw) / 2,
-                                },
-                                object_width,
-                                composition_object.x,
-                                margin,
-                            );
-                        }
-                        None => {
+                match screen_size {
+                    Some(ss) => {
+                        if ds_size != ss {
+                            panic!(
+                                "Inconsistent screen size encountered: {}x{}",
+                                ds_size.width,
+                                ds_size.height,
+                            )
                         }
                     }
-                    match crop_height {
-                        Some(ch) => {
-                            composition_object.y = new_item_offset(
-                                screen_size.height,
-                                match crop_y {
-                                    Some(cy) => cy,
-                                    None => (screen_size.height - ch) / 2,
-                                },
-                                object_height,
-                                composition_object.y,
-                                margin,
-                            );
-                        }
-                        None => {
-                        }
+                    None => {
+                        eprintln!("Existing resolution: {}x{}", ds_size.width, ds_size.height);
+                        screen_size = Some(ds_size);
+                        width_crop = to_crop(ds_size.width, crop_width, crop_x);
+                        height_crop = to_crop(ds_size.height, crop_height, crop_y);
                     }
                 }
 
-                for window in display_set.windows.values_mut() {
-                    match crop_width {
-                        Some(cw) => {
+                //
+                // UPDATE OBJECTS & WINDOWS
+                //
+
+                if display_set.composition.state == CompositionState::EpochStart
+                    || display_set.composition.state == CompositionState::AcquisitionPoint {
+                    objects.clear();
+                }
+
+                for (vid, object) in display_set.objects.iter() {
+                    objects.insert(vid.id, object.clone());
+                }
+
+                //
+                // UDPATE SCREEN DIMENSIONS
+                //
+
+                match &width_crop {
+                    Some(wc) => {
+                        display_set.width = wc.size;
+                        for window in display_set.windows.values_mut() {
                             window.x = new_item_offset(
-                                screen_size.width,
-                                match crop_x {
-                                    Some(cx) => cx,
-                                    None => (screen_size.width - cw) / 2,
-                                },
-                                window.width,
-                                window.x,
-                                margin,
+                                wc.size, wc.offset, window.width, window.x, margin
                             );
                         }
-                        None => {
-                        }
-                    }
-                    match crop_height {
-                        Some(ch) => {
-                            window.y = new_item_offset(
-                                screen_size.height,
-                                match crop_y {
-                                    Some(cy) => cy,
-                                    None => (screen_size.height - ch) / 2,
-                                },
-                                window.height,
-                                window.y,
-                                margin,
-                            );
-                        }
-                        None => {
-                        }
-                    }
-                }
-
-                for (window_id_1, window_1) in display_set.windows.iter() {
-                    for (window_id_2, window_2) in display_set.windows.iter() {
-                        if window_id_1 != window_id_2 {
-
-                            let window_1_ex = window_1.x + window_1.width;
-                            let window_1_ey = window_1.y + window_1.height;
-
-                            if window_1.x <= window_2.x && window_2.x <= window_1_ex
-                                && window_1.y <= window_2.y && window_2.y <= window_1_ey {
-                                panic!(
-                                    "window collision detected at {}",
-                                    ts_to_timestamp(display_set.pts),
-                                )
+                        for (cid, co) in display_set.composition.objects.iter_mut() {
+                            match objects.get(&cid.object_id) {
+                                Some(object) => {
+                                    co.x = new_item_offset(
+                                        wc.size, wc.offset, object.width, co.x, margin
+                                    );
+                                }
+                                None =>
+                                {
+                                    panic!("Object referenced by composition not found.")
+                                }
                             }
                         }
                     }
+                    None => {
+                    }
                 }
+
+                match &height_crop {
+                    Some(hc) => {
+                        display_set.height = hc.size;
+                        for window in display_set.windows.values_mut() {
+                            window.y = new_item_offset(
+                                hc.size, hc.offset, window.height, window.y, margin
+                            );
+                        }
+                        for (cid, co) in display_set.composition.objects.iter_mut() {
+                            match objects.get(&cid.object_id) {
+                                Some(object) => {
+                                    co.y = new_item_offset(
+                                        hc.size, hc.offset, object.height, co.y, margin
+                                    );
+                                }
+                                None =>
+                                {
+                                    panic!("Object referenced by composition not found.")
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                    }
+                }
+
+                //
+                // LUMINOSITY SCALING
+                //
 
                 match lum_scale {
                     Some(factor) => {
@@ -379,6 +366,34 @@ fn main() {
                 break
             }
         };
+    }
+}
+
+fn to_crop(old_size: u16, new_size: Option<u16>, offset: Option<u16>) -> Option<Crop> {
+    match new_size {
+        Some(ns) => {
+            match offset {
+                Some(o) => {
+                    Some(
+                        Crop {
+                            size: ns,
+                            offset: o,
+                        }
+                    )
+                }
+                None => {
+                    Some(
+                        Crop {
+                            size: ns,
+                            offset: (old_size - ns) / 2,
+                        }
+                    )
+                }
+            }
+        }
+        None => {
+            None
+        }
     }
 }
 
