@@ -264,6 +264,7 @@ pub struct PaletteEntry {
     pub alpha: u8,
 }
 
+/// Defines a single object within an epoch.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct ObjectDefinitionSegment {
     /// The timestamp indicating when composition decoding should start. In practice, this is
@@ -273,15 +274,22 @@ pub struct ObjectDefinitionSegment {
     /// The timestamp indicating when the composition should be displayed. In practice, this
     /// value is always zero.
     pub dts: u32,
+    /// The ID of this object, which may be redefined within an epoch.
     pub id: u16,
+    /// The version increment of this object.
     pub version: u8,
+    /// This object's role in a possible multi-part object.
     pub sequence: Sequence,
+    /// The width of this object.
     pub width: u16,
+    /// The height of this object.
     pub height: u16,
+    /// The line data for this object; each `u8` value refers to a palette ID.
     pub lines: Vec<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
+/// Defines the end of a display set (DS).
 pub struct EndSegment {
     /// The timestamp indicating when composition decoding should start. In practice, this is
     /// the time at which the composition is displayed. All segments within a DS typically have
