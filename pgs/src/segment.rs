@@ -202,8 +202,8 @@ pub struct WindowDefinitionSegment {
     pub windows: Vec<WindowDefinition>,
 }
 
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
 /// Defines a window within the screen.
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct WindowDefinition {
     /// The ID of this window within the epoch.
     pub id: u8,
@@ -219,12 +219,12 @@ pub struct WindowDefinition {
     pub height: u16,
 }
 
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
 /// Defines a set of palette entries within an epoch.
 ///
 /// Palette entries can be broken apart into sets so that they can be modified as a group within
 /// an epoch. This can be used, for example, to provide a fade-out effect by continuously
 /// updating the palette entries referenced by an object currently on the screen.
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PaletteDefinitionSegment {
     /// The timestamp indicating when composition decoding should start. In practice, this is
     /// the time at which the composition is displayed. All segments within a DS typically have
@@ -241,11 +241,11 @@ pub struct PaletteDefinitionSegment {
     pub entries: Vec<PaletteEntry>,
 }
 
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
 /// Defines a palette entry within a palette set.
 ///
 /// The role of a palette entry is to define or update exact pixel color, as later referenced by
 /// any objects also defined within an epoch.
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PaletteEntry {
     /// The ID of this palette entry, which should be unique within an epoch.
     pub id: u8,
