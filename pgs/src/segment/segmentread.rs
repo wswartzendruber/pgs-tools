@@ -24,6 +24,7 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use thiserror::Error as ThisError;
 
+/// A specialized [`Result`](std::result::Result) type for segment-reading operations.
 pub type ReadResult<T> = Result<T, ReadError>;
 
 /// The error type for [ReadSegmentExt].
@@ -58,9 +59,9 @@ pub enum ReadError {
     },
     /// The bitstream declares an unrecognized composition state within a presentation
     /// composition segment (PCS). The valid states are:
-    /// - `0x00` (maps to [`super::CompositionState::Normal`])
-    /// - `0x40` (maps to [`super::CompositionState::AcquisitionPoint`])
-    /// - `0x80` (maps to [`super::CompositionState::EpochStart`])
+    /// - `0x00` (maps to [`CompositionState::Normal`])
+    /// - `0x40` (maps to [`CompositionState::AcquisitionPoint`])
+    /// - `0x80` (maps to [`CompositionState::EpochStart`])
     #[error("presentation composition segment has unrecognized composition state")]
     UnrecognizedCompositionState {
         /// The composition state value that was parsed.
@@ -86,9 +87,9 @@ pub enum ReadError {
     },
     /// The bitstream declares an unrecognized sequence flag within an object definition segment
     /// (ODS). The valid flags are:
-    /// - `0xC0` (maps to [`super::Sequence::Single`])
-    /// - `0x80` (maps to [`super::Sequence::First`])
-    /// - `0x40` (maps to [`super::Sequence::Last`])
+    /// - `0xC0` (maps to [`Sequence::Single`])
+    /// - `0x80` (maps to [`Sequence::First`])
+    /// - `0x40` (maps to [`Sequence::Last`])
     #[error("unrecognized object definition sequence flag")]
     UnrecognizedObjectSequenceFlag {
         /// The sequence flag that was parsed.
@@ -116,7 +117,9 @@ pub enum ReadError {
     IncompleteRleLine,
 }
 
+/// Allows reading segments from a source.
 pub trait ReadSegmentExt {
+    /// Reads the next segment from a source.
     fn read_segment(&mut self) -> ReadResult<Segment>;
 }
 
