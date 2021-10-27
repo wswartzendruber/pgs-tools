@@ -20,26 +20,42 @@ use std::io::{
 use byteorder::{BigEndian, WriteBytesExt};
 use thiserror::Error as ThisError;
 
+/// A specialized [`Result`](std::result::Result) type for segment-writing operations.
 pub type WriteResult<T> = Result<T, WriteError>;
 
+/// The error type for [WriteSegmentExt].
+///
+/// Errors are caused by either invalid state or by an underlying I/O error.
 #[derive(ThisError, Debug)]
 pub enum WriteError {
+    /// The [`Segment`] could not be written because of an underlying I/O error.
     #[error("segment IO error")]
     IoError {
+        /// The underlying I/O error.
         #[from]
         source: IoError,
     },
+    /// The [`Segment`] ([`PresentationCompositionSegment`]) being written has more than 255
+    /// composition objects.
     #[error("too many composition objects in presentation composition segment")]
     TooManyCompositionObjects,
+    /// The [`Segment`] ([`WindowDefinitionSegment`]) being written has more than 255 window
+    /// definitions.
     #[error("too many window definitions")]
     TooManyWindowDefinitions,
+    /// The [`Segment`] ([`ObjectDefinitionSegment`]) being written has more than 16,777,211
+    /// compressed bytes of data.
     #[error("object data is too large")]
     ObjectDataTooLarge,
+    /// The [`Segment`] ([`ObjectDefinitionSegment`]) being written has a line with more than
+    /// 16,383 pixels.
     #[error("object line too long")]
     ObjectLineTooLong,
 }
 
+/// Allows writing segments to a destination.
 pub trait WriteSegmentExt {
+    /// Writes a segment to a destination.
     fn write_segment(&mut self, segment: &Segment) -> WriteResult<()>;
 }
 
@@ -209,7 +225,7 @@ fn generate_ods(ods: &ObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
         }
     )?;
 
-    // I have no idea why PGS streams record +4 bytes for the object data size, but they do.
+    // PGS streams record +4 bytes for the object data size, for some reason.
     if data.len() <= 16_777_211 {
         payload.write_u24::<BigEndian>((data.len() + 4) as u32)?;
     } else {
@@ -265,7 +281,7 @@ fn output_rle_sequence(output: &mut Vec<u8>, byte: u8, count: usize) -> WriteRes
                 output.push(0x00);
                 output.push(count as u8);
             }
-            64 ..= 16383 => {
+            64 ..= 16_383 => {
                 output.push(0x00);
                 output.push(0x40 | (count >> 8) as u8);
                 output.push((count & 0xFF) as u8);
@@ -291,7 +307,7 @@ fn output_rle_sequence(output: &mut Vec<u8>, byte: u8, count: usize) -> WriteRes
                 output.push(0x80 | count as u8);
                 output.push(byte);
             }
-            64 ..= 16383 => {
+            64 ..= 16_383 => {
                 output.push(0x00);
                 output.push(0xC0 | (count >> 8) as u8);
                 output.push((count & 0xFF) as u8);
