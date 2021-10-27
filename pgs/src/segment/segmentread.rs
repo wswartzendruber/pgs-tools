@@ -26,31 +26,92 @@ use thiserror::Error as ThisError;
 
 pub type ReadResult<T> = Result<T, ReadError>;
 
+/// The error type for [ReadSegmentExt].
+///
+/// Errors are caused by either an invalid bitstream or by an underlying I/O error.
 #[derive(ThisError, Debug)]
 pub enum ReadError {
+    /// The segment could not be read because of an underlying I/O error.
     #[error("segment IO error")]
     IoError {
+        /// The underlying I/O error.
         #[from]
         source: IoError,
     },
+    /// The bitstream declares an unrecognized magic number for the segment. This value should
+    /// always be `0x5047`.
     #[error("segment has unrecognized magic number")]
-    UnrecognizedMagicNumber,
+    UnrecognizedMagicNumber {
+        /// The magic number that was parsed.
+        parsed_magic_number: u16,
+    },
+    /// The bitstream declares an unrecognized kind of segment. The valid kinds are:
+    /// - `0x14` (PDS, or pallete definition segment)
+    /// - `0x15` (ODS, or object definition segment)
+    /// - `0x16` (PCS, or presentation composition segment)
+    /// - `0x17` (WDS, or window definition segment)
+    /// - `0x80` (ES, or end segment)
     #[error("segment has unrecognized kind")]
-    UnrecognizedKind,
+    UnrecognizedKind {
+        /// The kind value that was parsed.
+        parsed_kind: u8,
+    },
+    /// The bitstream declares an unrecognized composition state within a presentation
+    /// composition segment (PCS). The valid states are:
+    /// - `0x00` (maps to [`super::CompositionState::Normal`])
+    /// - `0x40` (maps to [`super::CompositionState::AcquisitionPoint`])
+    /// - `0x80` (maps to [`super::CompositionState::EpochStart`])
     #[error("presentation composition segment has unrecognized composition state")]
-    UnrecognizedCompositionState,
+    UnrecognizedCompositionState {
+        /// The composition state value that was parsed.
+        parsed_composition_state: u8,
+    },
+    /// The bitstream declares an unrecognized palette update flag within a presentation
+    /// composition segment (PCS). The valid flags are:
+    /// - `0x00` (no palette updates are defined)
+    /// - `0x80` (a preceding palette within the epoch will be updated)
     #[error("presentation composition segment has unrecognized palette update flag")]
-    UnrecognizedPaletteUpdateFlag,
+    UnrecognizedPaletteUpdateFlag {
+        /// The palette update flag that was parsed.
+        parsed_palette_update_flag: u8,
+    },
+    /// The bitstream declares an invalid crop flag within a composition object within a
+    /// presentation composition segment (PCS). The valid flags are:
+    /// - `0x00` (no object cropping is being performed for this composition)
+    /// - `0x40` (object cropping is being performed for this composition)
     #[error("composition object has unrecognized cropped flag")]
-    UnrecognizedCropFlag,
+    UnrecognizedCropFlag {
+        /// The crop flag that was parsed.
+        parsed_crop_flag: u8,
+    },
+    /// The bitstream declares an unrecognized sequence flag within an object definition segment
+    /// (ODS). The valid flags are:
+    /// - `0xC0` (maps to [`super::Sequence::Single`])
+    /// - `0x80` (maps to [`super::Sequence::First`])
+    /// - `0x40` (maps to [`super::Sequence::Last`])
     #[error("unrecognized object definition sequence flag")]
-    UnrecognizedObjectSequenceFlag,
+    UnrecognizedObjectSequenceFlag {
+        /// The sequence flag that was parsed.
+        parsed_sequence_flag: u8,
+    },
+    /// The bitstream declares an invalid data length within an object definition segment (ODS).
+    /// Specifically, the declared data length must agree with the segment's total size.
     #[error("invalid object data length")]
-    InvalidObjectDataLength,
+    InvalidObjectDataLength {
+        /// The data length that was parsed.
+        parsed_data_length: u32,
+        /// The data length that was expected.
+        expected_data_length: u32,
+    },
+    /// The bitstream declares an incomplete RLE sequence within an object definition segment
+    /// (ODS).
     #[error("incomplete RLE sequence")]
     IncompleteRleSequence,
+    /// The bitstream declares an invalid RLE sequence within an object definition segment
+    /// (ODS).
     #[error("invalid RLE sequence")]
     InvalidRleSequence,
+    /// The bitstream declares an incomplete RLE line within an object definition segment (ODS).
     #[error("incomplete RLE line")]
     IncompleteRleLine,
 }
@@ -65,26 +126,28 @@ impl<T> ReadSegmentExt for T where
 
     fn read_segment(&mut self) -> ReadResult<Segment> {
 
-        if self.read_u16::<BigEndian>()? != 0x5047 {
-            return Err(ReadError::UnrecognizedMagicNumber)
+        let parsed_magic_number = self.read_u16::<BigEndian>()?;
+
+        if parsed_magic_number != 0x5047 {
+            return Err(ReadError::UnrecognizedMagicNumber { parsed_magic_number })
         }
 
         let pts = self.read_u32::<BigEndian>()?;
         let dts = self.read_u32::<BigEndian>()?;
-        let kind = self.read_u8()?;
+        let parsed_kind = self.read_u8()?;
         let size = self.read_u16::<BigEndian>()? as usize;
 
         let mut payload = vec![0u8; size];
         self.read_exact(&mut payload)?;
 
         Ok(
-            match kind {
+            match parsed_kind {
                 0x14 => Segment::PaletteDefinition(parse_pds(pts, dts, &payload)?),
                 0x15 => Segment::ObjectDefinition(parse_ods(pts, dts, &payload)?),
                 0x16 => Segment::PresentationComposition(parse_pcs(pts, dts, &payload)?),
                 0x17 => Segment::WindowDefinition(parse_wds(pts, dts, &payload)?),
                 0x80 => Segment::End(EndSegment { pts, dts }),
-                _ => return Err(ReadError::UnrecognizedKind),
+                _ => return Err(ReadError::UnrecognizedKind { parsed_kind }),
             }
         )
     }
@@ -103,13 +166,15 @@ fn parse_pcs(
     let frame_rate = input.read_u8()?;
 
     let composition_number = input.read_u16::<BigEndian>()?;
-    let composition_state = match input.read_u8()? {
+    let parsed_composition_state = input.read_u8()?;
+    let composition_state = match parsed_composition_state {
         0x00 => CompositionState::Normal,
         0x40 => CompositionState::AcquisitionPoint,
         0x80 => CompositionState::EpochStart,
-        _ => return Err(ReadError::UnrecognizedCompositionState),
+        _ => return Err(ReadError::UnrecognizedCompositionState { parsed_composition_state }),
     };
-    let palette_update_id = match input.read_u8()? {
+    let parsed_palette_update_flag =input.read_u8()?;
+    let palette_update_id = match parsed_palette_update_flag {
         0x00 => {
             input.read_u8()?;
             None
@@ -118,7 +183,7 @@ fn parse_pcs(
             Some(input.read_u8()?)
         }
         _ => {
-            return Err(ReadError::UnrecognizedPaletteUpdateFlag)
+            return Err(ReadError::UnrecognizedPaletteUpdateFlag { parsed_palette_update_flag })
         }
     };
     let comp_obj_count = input.read_u8()? as usize;
@@ -129,10 +194,11 @@ fn parse_pcs(
 
             let object_id = input.read_u16::<BigEndian>()?;
             let window_id = input.read_u8()?;
-            let cropped = match input.read_u8()? {
+            let parsed_crop_flag = input.read_u8()?;
+            let cropped = match parsed_crop_flag {
                 0x40 => true,
                 0x00 => false,
-                _ => return Err(ReadError::UnrecognizedCropFlag),
+                _ => return Err(ReadError::UnrecognizedCropFlag { parsed_crop_flag }),
             };
             let x = input.read_u16::<BigEndian>()?;
             let y = input.read_u16::<BigEndian>()?;
@@ -256,16 +322,25 @@ fn parse_ods(
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
-    let sequence = match input.read_u8()? {
+    let parsed_sequence_flag = input.read_u8()?;
+    let sequence = match parsed_sequence_flag {
         0xC0 => Sequence::Single,
         0x80 => Sequence::First,
         0x40 => Sequence::Last,
-        _ => return Err(ReadError::UnrecognizedObjectSequenceFlag),
+        _ => return Err(ReadError::UnrecognizedObjectSequenceFlag { parsed_sequence_flag }),
     };
 
-    // I have no idea why PGS streams record +4 bytes for the object data size, but they do.
-    if input.read_u24::<BigEndian>()? as usize - 4 != payload.len() - 11 {
-        return Err(ReadError::InvalidObjectDataLength)
+    // PGS streams record +4 bytes for the object data size, for some reason.
+    let parsed_data_length = input.read_u24::<BigEndian>()?;
+    let expected_data_length = (payload.len() - 7) as u32;
+
+    if parsed_data_length != expected_data_length {
+        return Err(
+            ReadError::InvalidObjectDataLength {
+                parsed_data_length,
+                expected_data_length,
+            }
+        )
     }
 
     let width = input.read_u16::<BigEndian>()?;
