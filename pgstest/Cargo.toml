@@ -8,12 +8,12 @@
 
 [package]
 name = "pgstest"
-description = "Tests PGS subtitle data"
+description = "Tests PGS subtitles"
 version = "0.1.0"
 authors = ["William Swartzendruber <wswartzendruber@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MPL-2.0"
-repository = "https://github.com/wswartzendruber/pgsmod"
+repository = "https://github.com/wswartzendruber/pgs-tools"
 
 [dependencies]
 pgs = { path = "../pgs" }
