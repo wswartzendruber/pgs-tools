@@ -73,26 +73,41 @@ pub struct DisplaySet {
     pub composition: Composition,
 }
 
+/// Represents a composition of objects into windows.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Composition {
+    /// Starting at zero, this increments each time graphics are updated within an epoch.
     pub number: u16,
+    /// Defines the role of this DS within the larger epoch.
     pub state: CompositionState,
+    /// A collection of [CompositionObject]s, each mapped according to its compound ID (object
+    /// ID + window ID).
     pub objects: BTreeMap<Cid, CompositionObject>,
 }
 
+/// Defines a compound ID, combining an object and window identifier.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Cid {
+    /// The object ID.
     pub object_id: u16,
+    /// The window ID.
     pub window_id: u8,
 }
 
+/// Defines the location of an object (or a region of one) within a window.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct CompositionObject {
+    /// The horizontal offset of the object’s top-left corner relative to the top-left corner of
+    /// the screen. If the object is cropped, then this applies only to the visible area.
     pub x: u16,
+    /// The vertical offset of the object’s top-left corner relative to the top-left corner of
+    /// the screen. If the object is cropped, then this applies only to the visible area.
     pub y: u16,
+    /// If set, defines the visible area of the object. Otherwise, the entire object is shown.
     pub crop: Option<Crop>,
 }
 
+/// Defines a window within a display set.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Window {
     pub x: u16,
@@ -101,16 +116,31 @@ pub struct Window {
     pub height: u16,
 }
 
+/// Defines a palette within a display set.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Palette {
+    /// The entries within this palette, each mapped according to its ID.
     pub entries: BTreeMap<u8, PaletteEntry>
 }
 
+/// Defines a palette entry within a palette set.
+///
+/// The role of a palette entry is to define or update exact pixel color, as later referenced by
+/// any objects also defined within an epoch.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct PaletteEntry {
+    /// The range-limited, gamma-corrected luminosity value of this entry. Black is represented
+    /// by a value of `16` while white is represented by a value of `235`. For standard Blu-ray
+    /// discs, the BT.709 gamma function is typically used. However, 4K UltraHD discs seem to
+    /// use the ST.2084 gamma function instead.
     pub y: u8,
+    /// The vertical position of this entry on the YC<sub>b</sub>C<sub>r</sub> color plane,
+    /// starting from the bottom and going up.
     pub cr: u8,
+    /// The horizontal position of this entry on the YC<sub>b</sub>C<sub>r</sub> color plane,
+    /// starting from the left and going to the right.
     pub cb: u8,
+    /// The alpha value (transparency ratio) of this entry.
     pub alpha: u8,
 }
 
