@@ -206,7 +206,7 @@ impl<T> ReadDisplaySetExt for T where
                             }
                         }
                     }
-                    if sequence == Sequence::Single || sequence == Sequence::Last {
+                    if ods.sequence == Sequence::Single || sequence == Sequence::Last {
                         objects.insert(
                             vid,
                             Object {
