@@ -159,7 +159,7 @@ impl<T> WriteDisplaySetExt for T where
                         width: object.width,
                         height: object.height,
                         length: data.len(),
-                        data: Vec::from(&data[index..(index + MAX_DATA_SIZE)]),
+                        data: Vec::from(&data[index..]),
                     }
                 );
             } else {
