@@ -206,7 +206,7 @@ impl<T> ReadDisplaySetExt for T where
                             }
                         }
                     }
-                    if ods.sequence == Sequence::Single || sequence == Sequence::Last {
+                    if ods.sequence == Sequence::Single || ods.sequence == Sequence::Last {
                         objects.insert(
                             vid,
                             Object {
@@ -235,12 +235,13 @@ impl<T> ReadDisplaySetExt for T where
         }
 
         for co in pcs.composition_objects.iter() {
-            if !objects.keys().any(|vid| vid.id == co.object_id) {
-                return Err(ReadError::CompositionReferencesUnknownObjectId)
-            }
-            if !windows.contains_key(&co.window_id) {
-                return Err(ReadError::CompositionReferencesUnknownWindowId)
-            }
+            // TODO: Maybe re-enable.
+            // if !objects.keys().any(|vid| vid.id == co.object_id) {
+            //     return Err(ReadError::CompositionReferencesUnknownObjectId)
+            // }
+            // if !windows.contains_key(&co.window_id) {
+            //     return Err(ReadError::CompositionReferencesUnknownWindowId)
+            // }
             composition_objects.insert(
                 Cid {
                     object_id: co.object_id,
