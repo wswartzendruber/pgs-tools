@@ -118,23 +118,25 @@ fn main() {
                         println!("  object_sequence = {}", match ods.sequence {
                             Sequence::Single => "SINGLE",
                             Sequence::First => "FIRST",
+                            Sequence::Middle => "MIDDLE",
                             Sequence::Last => "LAST",
                         });
                         println!("  object_width = {}", ods.width);
                         println!("  object_height = {}", ods.height);
-                        println!("  object_data = [{} lines]", ods.lines.len());
+                        println!("  object_data = [{} bytes]", ods.data.len());
                     }
                     Segment::PaletteDefinition(pds) => {
                         println!("palette_definition_segment({})", ts_to_timestamp(pds.pts));
                         println!("  palette_id = {}", pds.id);
                         println!("  palette_version_number = {}", pds.version);
-                        for pe in pds.entries.iter() {
-                            println!("  palette_entry");
-                            println!("    y_value = {}", pe.y);
-                            println!("    cb_value = {}", pe.cb);
-                            println!("    cr_value = {}", pe.cr);
-                            println!("    t_value = {}", pe.alpha);
-                        }
+                        // TODO: Uncomment
+                        // for pe in pds.entries.iter() {
+                        //     println!("  palette_entry");
+                        //     println!("    y_value = {}", pe.y);
+                        //     println!("    cb_value = {}", pe.cb);
+                        //     println!("    cr_value = {}", pe.cr);
+                        //     println!("    t_value = {}", pe.alpha);
+                        // }
                     }
                     Segment::End(es) => {
                         println!("end_segment({})", ts_to_timestamp(es.pts));
@@ -149,7 +151,7 @@ fn main() {
                             panic!("Could not read segment due to IO error: {}", source)
                         }
                     }
-                    _ => panic!("Could not read segment due to bitstream error: {}", err)
+                    _ => panic!("Could not read segment due to bitstream error: {:?}", err)
                 }
                 break
             }

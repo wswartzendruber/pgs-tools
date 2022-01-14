@@ -51,10 +51,6 @@ pub enum WriteError {
     /// compressed bytes of data.
     #[error("object data is too large")]
     ObjectDataTooLarge,
-    /// The [`Segment`] ([`ObjectDefinitionSegment`]) being written has a line with more than
-    /// 16,383 pixels.
-    #[error("object line too long")]
-    ObjectLineTooLong,
 }
 
 /// Allows writing segments to a destination.
@@ -153,7 +149,7 @@ fn generate_pcs(pcs: &PresentationCompositionSegment) -> WriteResult<Vec<u8>> {
 
         payload.write_u8(
             if cropped {
-                0x40
+                0x80
             } else {
                 0x00
             }
@@ -217,7 +213,6 @@ fn generate_pds(pds: &PaletteDefinitionSegment) -> WriteResult<Vec<u8>> {
 fn generate_ods(ods: &ObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 
     let mut payload = vec![];
-    let data = rle_compress(&ods.lines)?;
 
     payload.write_u16::<BigEndian>(ods.id)?;
     payload.write_u8(ods.version)?;
@@ -225,103 +220,20 @@ fn generate_ods(ods: &ObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
         match &ods.sequence {
             Sequence::Single => 0xC0,
             Sequence::First => 0x80,
+            Sequence::Middle => 0x00,
             Sequence::Last => 0x40,
         }
     )?;
 
-    // PGS streams record +4 bytes for the object data size, for some reason.
-    if data.len() <= 16_777_211 {
-        payload.write_u24::<BigEndian>((data.len() + 4) as u32)?;
+    if ods.data.len() <= 16_777_211 {
+        payload.write_u24::<BigEndian>(ods.length as u32)?;
     } else {
         return Err(WriteError::ObjectDataTooLarge)
     }
 
     payload.write_u16::<BigEndian>(ods.width)?;
     payload.write_u16::<BigEndian>(ods.height)?;
-    payload.write_all(&data)?;
+    payload.write_all(&ods.data)?;
 
     Ok(payload)
-}
-
-fn rle_compress(input: &Vec<Vec<u8>>) -> WriteResult<Vec<u8>> {
-
-    let mut output = Vec::<u8>::new();
-    let mut byte = 0_u8;
-    let mut count = 0_usize;
-
-    for line in input.iter() {
-
-        for next_byte in line.iter() {
-            if *next_byte == byte {
-                count += 1;
-            } else {
-                if count > 0 {
-                    output_rle_sequence(&mut output, byte, count)?;
-                }
-                byte = *next_byte;
-                count = 1;
-            }
-        }
-
-        output_rle_sequence(&mut output, byte, count)?;
-        byte = 0;
-        count = 0;
-
-        output.push(0x00);
-        output.push(0x00);
-    }
-
-    Ok(output)
-}
-
-fn output_rle_sequence(output: &mut Vec<u8>, byte: u8, count: usize) -> WriteResult<()> {
-
-    if byte == 0x00 {
-        match count {
-            0 => {
-                //panic!("attempted to handle zero-byte sequence in PGS line")
-            }
-            1 ..= 63 => {
-                output.push(0x00);
-                output.push(count as u8);
-            }
-            64 ..= 16_383 => {
-                output.push(0x00);
-                output.push(0x40 | (count >> 8) as u8);
-                output.push((count & 0xFF) as u8);
-            }
-            _ => {
-                return Err(WriteError::ObjectLineTooLong)
-            }
-        }
-    } else {
-        match count {
-            0 => {
-                //panic!("attempted to handle zero-byte sequence in PGS line")
-            }
-            1 => {
-                output.push(byte);
-            }
-            2 => {
-                output.push(byte);
-                output.push(byte);
-            }
-            3 ..= 63 => {
-                output.push(0x00);
-                output.push(0x80 | count as u8);
-                output.push(byte);
-            }
-            64 ..= 16_383 => {
-                output.push(0x00);
-                output.push(0xC0 | (count >> 8) as u8);
-                output.push((count & 0xFF) as u8);
-                output.push(byte);
-            }
-            _ => {
-                return Err(WriteError::ObjectLineTooLong)
-            }
-        }
-    }
-
-    Ok(())
 }

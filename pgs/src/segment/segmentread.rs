@@ -83,7 +83,7 @@ pub enum ReadError {
     /// The bitstream declares an invalid crop flag within a composition object within a
     /// presentation composition segment (PCS). The valid flags are:
     /// - `0x00` (no object cropping is being performed for this composition)
-    /// - `0x40` (object cropping is being performed for this composition)
+    /// - `0x80` (object cropping is being performed for this composition)
     #[error("composition object has unrecognized cropped flag")]
     UnrecognizedCropFlag {
         /// The crop flag that was parsed.
@@ -99,26 +99,6 @@ pub enum ReadError {
         /// The sequence flag that was parsed.
         parsed_sequence_flag: u8,
     },
-    /// The bitstream declares an invalid data length within an object definition segment (ODS).
-    /// Specifically, the declared data length must agree with the segment's total size.
-    #[error("invalid object data length")]
-    InvalidObjectDataLength {
-        /// The data length that was parsed.
-        parsed_data_length: u32,
-        /// The data length that was expected.
-        expected_data_length: u32,
-    },
-    /// The bitstream declares an incomplete RLE sequence within an object definition segment
-    /// (ODS).
-    #[error("incomplete RLE sequence")]
-    IncompleteRleSequence,
-    /// The bitstream declares an invalid RLE sequence within an object definition segment
-    /// (ODS).
-    #[error("invalid RLE sequence")]
-    InvalidRleSequence,
-    /// The bitstream declares an incomplete RLE line within an object definition segment (ODS).
-    #[error("incomplete RLE line")]
-    IncompleteRleLine,
 }
 
 /// Allows reading segments from a source.
@@ -203,7 +183,7 @@ fn parse_pcs(
             let window_id = input.read_u8()?;
             let parsed_crop_flag = input.read_u8()?;
             let cropped = match parsed_crop_flag {
-                0x40 => true,
+                0x80 => true,
                 0x00 => false,
                 _ => return Err(ReadError::UnrecognizedCropFlag { parsed_crop_flag }),
             };
@@ -333,26 +313,14 @@ fn parse_ods(
     let sequence = match parsed_sequence_flag {
         0xC0 => Sequence::Single,
         0x80 => Sequence::First,
+        0x00 => Sequence::Middle,
         0x40 => Sequence::Last,
         _ => return Err(ReadError::UnrecognizedObjectSequenceFlag { parsed_sequence_flag }),
     };
-
-    // PGS streams record +4 bytes for the object data size, for some reason.
-    let parsed_data_length = input.read_u24::<BigEndian>()?;
-    let expected_data_length = (payload.len() - 7) as u32;
-
-    if parsed_data_length != expected_data_length {
-        return Err(
-            ReadError::InvalidObjectDataLength {
-                parsed_data_length,
-                expected_data_length,
-            }
-        )
-    }
-
+    let length = input.read_u24::<BigEndian>()? as usize;
     let width = input.read_u16::<BigEndian>()?;
     let height = input.read_u16::<BigEndian>()?;
-    let lines = rle_decompress(&input.into_inner()[11..])?;
+    let data = Vec::from(&input.into_inner()[11..]);
 
     Ok(
         ObjectDefinitionSegment {
@@ -363,97 +331,8 @@ fn parse_ods(
             sequence,
             width,
             height,
-            lines,
+            length,
+            data,
         }
     )
-}
-
-fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
-
-    let mut output = Vec::<Vec<u8>>::new();
-    let mut line = vec![];
-    let mut iter = input.iter();
-
-    loop {
-        match iter.next() {
-            Some(byte_1) => {
-                if *byte_1 == 0x00 {
-                    match iter.next() {
-                        Some(byte_2) => {
-                            if *byte_2 == 0x00 {
-                                output.push(line);
-                                line = vec![];
-                            } else if *byte_2 >> 6 == 0 {
-                                for _ in 0..(*byte_2 & 0x3F) {
-                                    line.push(0);
-                                }
-                            } else if *byte_2 >> 6 == 1 {
-                                match iter.next() {
-                                    Some(byte_3) => {
-                                        for _ in 0..(
-                                            (*byte_2 as u16 & 0x3F) << 8
-                                            | *byte_3 as u16
-                                        ) {
-                                            line.push(0);
-                                        }
-                                    }
-                                    None => {
-                                        return Err(ReadError::IncompleteRleSequence)
-                                    }
-                                }
-                            } else if *byte_2 >> 6 == 2 {
-                                match iter.next() {
-                                    Some(byte_3) => {
-                                        for _ in 0..(*byte_2 & 0x3F) {
-                                            line.push(*byte_3);
-                                        }
-                                    }
-                                    None => {
-                                        return Err(ReadError::IncompleteRleSequence)
-                                    }
-                                }
-                            } else if *byte_2 >> 6 == 3 {
-                                match iter.next() {
-                                    Some(byte_3) => {
-                                        match iter.next() {
-                                            Some(byte_4) => {
-                                                for _ in 0..(
-                                                    (*byte_2 as u16 & 0x3F) << 8
-                                                    | *byte_3 as u16
-                                                ) {
-                                                    line.push(*byte_4);
-                                                }
-                                            }
-                                            None => {
-                                                return Err(ReadError::IncompleteRleSequence)
-                                            }
-                                        }
-                                    }
-                                    None => {
-                                        return Err(ReadError::IncompleteRleSequence)
-                                    }
-                                }
-                            } else {
-                                return Err(ReadError::InvalidRleSequence)
-                            }
-                        }
-                        None => {
-                            return Err(ReadError::IncompleteRleSequence)
-                        }
-                    }
-                } else {
-                    line.push(*byte_1);
-                }
-            }
-            None => {
-                break
-            }
-        }
-    }
-
-    if !line.is_empty() {
-        return Err(ReadError::IncompleteRleLine)
-    }
-
-    Ok(output)
 }

@@ -119,6 +119,8 @@ pub enum Sequence {
     Single,
     /// This object is the first portion in a multi-part object.
     First,
+    /// This object is a middle portion in a multi-part object.
+    Middle,
     /// This object is the last portion in a multi-part object.
     Last,
 }
@@ -284,12 +286,14 @@ pub struct ObjectDefinitionSegment {
     pub version: u8,
     /// This object's role in a possible multi-part object.
     pub sequence: Sequence,
+    /// The declared length of this object's data buffer.
+    pub length: usize,
     /// The width of this object.
     pub width: u16,
     /// The height of this object.
     pub height: u16,
-    /// The line data for this object; each `u8` value refers to a palette ID.
-    pub lines: Vec<Vec<u8>>,
+    /// The RLE-compressed data for this object (or portion thereof).
+    pub data: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq)]

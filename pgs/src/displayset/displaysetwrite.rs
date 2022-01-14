@@ -22,10 +22,13 @@ use super::{
         WriteError as SegmentWriteError,
         WriteSegmentExt,
         Segment,
+        Sequence,
     },
 };
 use std::io::Write;
 use thiserror::Error as ThisError;
+
+const MAX_DATA_SIZE: usize = 65_512;
 
 pub type WriteResult<T> = Result<T, WriteError>;
 
@@ -40,6 +43,10 @@ pub enum WriteError {
     CompositionReferencesUnknownObjectId,
     #[error("composition references unknown window ID")]
     CompositionReferencesUnknownWindowId,
+    /// The [`Segment`] ([`ObjectDefinitionSegment`]) being written has a line with more than
+    /// 16,383 pixels.
+    #[error("object line too long")]
+    ObjectLineTooLong,
 }
 
 pub trait WriteDisplaySetExt {
@@ -101,18 +108,76 @@ impl<T> WriteDisplaySetExt for T where
                 ).collect::<Vec<PaletteEntry>>(),
             }
         ).collect::<Vec<PaletteDefinitionSegment>>();
-        let odss = display_set.objects.iter().map(|(vid, object)|
-            ObjectDefinitionSegment {
-                pts: display_set.pts,
-                dts: display_set.dts,
-                id: vid.id,
-                version: vid.version,
-                sequence: object.sequence,
-                width: object.width,
-                height: object.height,
-                lines: object.lines.clone(),
+        let mut odss = Vec::new();
+
+        for (vid, object) in display_set.objects.iter() {
+
+            let data = rle_compress(&object.lines)?;
+            let mut index = 0;
+            let mut size = data.len();
+
+            if size > MAX_DATA_SIZE {
+                odss.push(
+                    ObjectDefinitionSegment {
+                        pts: display_set.pts,
+                        dts: display_set.dts,
+                        id: vid.id,
+                        version: vid.version,
+                        sequence: Sequence::First,
+                        width: object.width,
+                        height: object.height,
+                        length: data.len(),
+                        data: Vec::from(&data[..MAX_DATA_SIZE]),
+                    }
+                );
+                index += MAX_DATA_SIZE;
+                size -= MAX_DATA_SIZE;
+                while size > MAX_DATA_SIZE {
+                    odss.push(
+                        ObjectDefinitionSegment {
+                            pts: display_set.pts,
+                            dts: display_set.dts,
+                            id: vid.id,
+                            version: vid.version,
+                            sequence: Sequence::Middle,
+                            width: object.width,
+                            height: object.height,
+                            length: data.len(),
+                            data: Vec::from(&data[index..(index + MAX_DATA_SIZE)]),
+                        }
+                    );
+                    index += MAX_DATA_SIZE;
+                    size -= MAX_DATA_SIZE;
+                }
+                odss.push(
+                    ObjectDefinitionSegment {
+                        pts: display_set.pts,
+                        dts: display_set.dts,
+                        id: vid.id,
+                        version: vid.version,
+                        sequence: Sequence::Last,
+                        width: object.width,
+                        height: object.height,
+                        length: data.len(),
+                        data: Vec::from(&data[index..(index + MAX_DATA_SIZE)]),
+                    }
+                );
+            } else {
+                odss.push(
+                    ObjectDefinitionSegment {
+                        pts: display_set.pts,
+                        dts: display_set.dts,
+                        id: vid.id,
+                        version: vid.version,
+                        sequence: Sequence::Single,
+                        width: object.width,
+                        height: object.height,
+                        length: data.len(),
+                        data,
+                    }
+                );
             }
-        ).collect::<Vec<ObjectDefinitionSegment>>();
+        }
 
         self.write_segment(&Segment::PresentationComposition(pcs))?;
         self.write_segment(&Segment::WindowDefinition(wds))?;
@@ -131,4 +196,87 @@ impl<T> WriteDisplaySetExt for T where
 
         Ok(())
     }
+}
+
+fn rle_compress(input: &Vec<Vec<u8>>) -> WriteResult<Vec<u8>> {
+
+    let mut output = Vec::<u8>::new();
+    let mut byte = 0_u8;
+    let mut count = 0_usize;
+
+    for line in input.iter() {
+
+        for next_byte in line.iter() {
+            if *next_byte == byte {
+                count += 1;
+            } else {
+                if count > 0 {
+                    output_rle_sequence(&mut output, byte, count)?;
+                }
+                byte = *next_byte;
+                count = 1;
+            }
+        }
+
+        output_rle_sequence(&mut output, byte, count)?;
+        byte = 0;
+        count = 0;
+
+        output.push(0x00);
+        output.push(0x00);
+    }
+
+    Ok(output)
+}
+
+fn output_rle_sequence(output: &mut Vec<u8>, byte: u8, count: usize) -> WriteResult<()> {
+
+    if byte == 0x00 {
+        match count {
+            0 => {
+                //panic!("attempted to handle zero-byte sequence in PGS line")
+            }
+            1 ..= 63 => {
+                output.push(0x00);
+                output.push(count as u8);
+            }
+            64 ..= 16_383 => {
+                output.push(0x00);
+                output.push(0x40 | (count >> 8) as u8);
+                output.push((count & 0xFF) as u8);
+            }
+            _ => {
+                return Err(WriteError::ObjectLineTooLong)
+            }
+        }
+    } else {
+        match count {
+            0 => {
+                //panic!("attempted to handle zero-byte sequence in PGS line")
+            }
+            1 => {
+                output.push(byte);
+            }
+            2 => {
+                output.push(byte);
+                output.push(byte);
+            }
+            3 ..= 63 => {
+                output.push(0x00);
+                output.push(0x80 | count as u8);
+                output.push(byte);
+            }
+            64 ..= 16_383 => {
+                output.push(0x00);
+                output.push(0xC0 | (count >> 8) as u8);
+                output.push((count & 0xFF) as u8);
+                output.push(byte);
+            }
+            _ => {
+                return Err(WriteError::ObjectLineTooLong)
+            }
+        }
+    }
+
+    Ok(())
 }

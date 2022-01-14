@@ -22,6 +22,7 @@ use super::{
         ReadError as SegmentReadError,
         ReadSegmentExt,
         Segment,
+        Sequence,
     },
 };
 use std::{
@@ -59,6 +60,25 @@ pub enum ReadError {
     CompositionReferencesUnknownWindowId,
     #[error("palette update references unknown palette ID")]
     PaletteUpdateReferencesUnknownPaletteId,
+    /// The [Sequence] state of an object definition segment (ODS) is invalid.
+    #[error("invalid object sequence state")]
+    InvalidObjectSequence {
+        sequence: Sequence,
+    },
+    /// A display set (DS) contains an incomplete multi-part object.
+    #[error("incomplete object sequence")]
+    IncompleteObjectSequence,
+    /// The bitstream declares an incomplete RLE sequence within an object definition segment
+    /// (ODS).
+    #[error("incomplete RLE sequence")]
+    IncompleteRleSequence,
+    /// The bitstream declares an invalid RLE sequence within an object definition segment
+    /// (ODS).
+    #[error("invalid RLE sequence")]
+    InvalidRleSequence,
+    /// The bitstream declares an incomplete RLE line within an object definition segment (ODS).
+    #[error("incomplete RLE line")]
+    IncompleteRleLine,
 }
 
 pub trait ReadDisplaySetExt {
@@ -68,9 +88,10 @@ pub trait ReadDisplaySetExt {
 impl<T> ReadDisplaySetExt for T where
     T: Read,
 {
-
     fn read_display_set(&mut self) -> ReadResult<DisplaySet> {
 
+        let mut sequence = Sequence::Single;
+        let mut data = Vec::new();
         let mut windows = BTreeMap::<u8, Window>::new();
         let mut palettes = BTreeMap::<Vid<u8>, Palette>::new();
         let mut objects = BTreeMap::<Vid<u16>, Object>::new();
@@ -155,17 +176,53 @@ impl<T> ReadDisplaySetExt for T where
                     if objects.contains_key(&vid) {
                         return Err(ReadError::DuplicateObjectVid)
                     }
-                    objects.insert(
-                        vid,
-                        Object {
-                            width: ods.width,
-                            height: ods.height,
-                            sequence: ods.sequence,
-                            lines: ods.lines,
-                        },
-                    );
+                    match sequence {
+                        Sequence::Single | Sequence::Last => {
+                            match ods.sequence {
+                                Sequence::Single | Sequence::First => {
+                                    data.append(&mut ods.data.clone());
+                                }
+                                Sequence::Middle | Sequence::Last => {
+                                    return Err(
+                                        ReadError::InvalidObjectSequence {
+                                            sequence: ods.sequence
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Sequence::First | Sequence::Middle => {
+                            match ods.sequence {
+                                Sequence::Middle | Sequence::Last => {
+                                    data.append(&mut ods.data.clone());
+                                }
+                                Sequence::Single | Sequence::First => {
+                                    return Err(
+                                        ReadError::InvalidObjectSequence {
+                                            sequence: ods.sequence
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if sequence == Sequence::Single || sequence == Sequence::Last {
+                        objects.insert(
+                            vid,
+                            Object {
+                                width: ods.width,
+                                height: ods.height,
+                                lines: rle_decompress(&data)?,
+                            },
+                        );
+                        data.clear();
+                    }
+                    sequence = ods.sequence;
                 }
                 Segment::End(es) => {
+                    if sequence != Sequence::Single && sequence != Sequence::Last {
+                        return Err(ReadError::IncompleteObjectSequence)
+                    }
                     if es.pts != pts {
                         return Err(ReadError::InconsistentPts)
                     }
@@ -228,4 +285,94 @@ impl<T> ReadDisplaySetExt for T where
             }
         )
     }
+}
+
+fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
+
+    let mut output = Vec::<Vec<u8>>::new();
+    let mut line = vec![];
+    let mut iter = input.iter();
+
+    loop {
+        match iter.next() {
+            Some(byte_1) => {
+                if *byte_1 == 0x00 {
+                    match iter.next() {
+                        Some(byte_2) => {
+                            if *byte_2 == 0x00 {
+                                output.push(line);
+                                line = vec![];
+                            } else if *byte_2 >> 6 == 0 {
+                                for _ in 0..(*byte_2 & 0x3F) {
+                                    line.push(0);
+                                }
+                            } else if *byte_2 >> 6 == 1 {
+                                match iter.next() {
+                                    Some(byte_3) => {
+                                        for _ in 0..(
+                                            (*byte_2 as u16 & 0x3F) << 8
+                                            | *byte_3 as u16
+                                        ) {
+                                            line.push(0);
+                                        }
+                                    }
+                                    None => {
+                                        return Err(ReadError::IncompleteRleSequence)
+                                    }
+                                }
+                            } else if *byte_2 >> 6 == 2 {
+                                match iter.next() {
+                                    Some(byte_3) => {
+                                        for _ in 0..(*byte_2 & 0x3F) {
+                                            line.push(*byte_3);
+                                        }
+                                    }
+                                    None => {
+                                        return Err(ReadError::IncompleteRleSequence)
+                                    }
+                                }
+                            } else if *byte_2 >> 6 == 3 {
+                                match iter.next() {
+                                    Some(byte_3) => {
+                                        match iter.next() {
+                                            Some(byte_4) => {
+                                                for _ in 0..(
+                                                    (*byte_2 as u16 & 0x3F) << 8
+                                                    | *byte_3 as u16
+                                                ) {
+                                                    line.push(*byte_4);
+                                                }
+                                            }
+                                            None => {
+                                                return Err(ReadError::IncompleteRleSequence)
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        return Err(ReadError::IncompleteRleSequence)
+                                    }
+                                }
+                            } else {
+                                return Err(ReadError::InvalidRleSequence)
+                            }
+                        }
+                        None => {
+                            return Err(ReadError::IncompleteRleSequence)
+                        }
+                    }
+                } else {
+                    line.push(*byte_1);
+                }
+            }
+            None => {
+                break
+            }
+        }
+    }
+
+    if !line.is_empty() {
+        return Err(ReadError::IncompleteRleLine)
+    }
+
+    Ok(output)
 }

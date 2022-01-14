@@ -43,7 +43,7 @@ pub use displaysetread::*;
 pub use displaysetwrite::*;
 
 use std::collections::BTreeMap;
-use super::segment::{Crop, CompositionState, Sequence};
+use super::segment::{Crop, CompositionState};
 
 /// Represents a complete display set (DS) within an epoch.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
@@ -148,7 +148,6 @@ pub struct PaletteEntry {
 pub struct Object {
     pub width: u16,
     pub height: u16,
-    pub sequence: Sequence,
     pub lines: Vec<Vec<u8>>,
 }
 
