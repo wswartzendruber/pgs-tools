@@ -13,12 +13,14 @@ use super::{
     Crop,
     CompositionState,
     EndSegment,
-    ObjectDefinitionSegment,
+    FinalObjectDefinitionSegment,
+    InitialObjectDefinitionSegment,
+    MiddleObjectDefinitionSegment,
     PaletteDefinitionSegment,
     PaletteEntry,
     PresentationCompositionSegment,
     Segment,
-    Sequence,
+    SingleObjectDefinitionSegment,
     WindowDefinition,
     WindowDefinitionSegment,
 };
@@ -91,13 +93,23 @@ pub enum ReadError {
     },
     /// The bitstream declares an unrecognized sequence flag within an object definition segment
     /// (ODS). The valid flags are:
-    /// - `0xC0` (maps to [`Sequence::Single`])
-    /// - `0x80` (maps to [`Sequence::First`])
-    /// - `0x40` (maps to [`Sequence::Last`])
+    /// - `0xC0` (declares a single, complete object)
+    /// - `0x80` (declares the initial portion of an object)
+    /// - `0x40` (declares the final portion of an object)
+    /// Otherwise, the segment is interpreted to be a middle portion.
     #[error("unrecognized object definition sequence flag")]
     UnrecognizedObjectSequenceFlag {
         /// The sequence flag that was parsed.
         parsed_sequence_flag: u8,
+    },
+    /// The bitstream declares an invalid data length within an object definition segment (ODS).
+    /// Specifically, the declared data length must agree with the segment's total size.
+    #[error("invalid object data length")]
+    InvalidObjectDataLength {
+        /// The data length that was parsed.
+        parsed_data_length: u32,
+        /// The data length that was expected.
+        expected_data_length: u32,
     },
 }
 
@@ -129,12 +141,53 @@ impl<T> ReadSegmentExt for T where
 
         Ok(
             match parsed_kind {
-                0x14 => Segment::PaletteDefinition(parse_pds(pts, dts, &payload)?),
-                0x15 => Segment::ObjectDefinition(parse_ods(pts, dts, &payload)?),
-                0x16 => Segment::PresentationComposition(parse_pcs(pts, dts, &payload)?),
-                0x17 => Segment::WindowDefinition(parse_wds(pts, dts, &payload)?),
-                0x80 => Segment::End(EndSegment { pts, dts }),
-                _ => return Err(ReadError::UnrecognizedKind { parsed_kind }),
+                0x14 => {
+                    Segment::PaletteDefinition(parse_pds(pts, dts, &payload)?)
+                }
+                0x15 => {
+                    let parsed_sequence_flag = payload[3];
+                    match parsed_sequence_flag {
+                        0xC0 => {
+                            Segment::SingleObjectDefinition(
+                                parse_sods(pts, dts, &payload)?
+                            )
+                        }
+                        0x80 => {
+                            Segment::InitialObjectDefinition(
+                                parse_iods(pts, dts, &payload)?
+                            )
+                        }
+                        0x00 => {
+                            Segment::MiddleObjectDefinition(
+                                parse_mods(pts, dts, &payload)?
+                            )
+                        }
+                        0x40 => {
+                            Segment::FinalObjectDefinition(
+                                parse_fods(pts, dts, &payload)?
+                            )
+                        }
+                        _ => {
+                            return Err(
+                                ReadError::UnrecognizedObjectSequenceFlag {
+                                    parsed_sequence_flag
+                                }
+                            )
+                        }
+                    }
+                }
+                0x16 => {
+                    Segment::PresentationComposition(parse_pcs(pts, dts, &payload)?)
+                }
+                0x17 => {
+                    Segment::WindowDefinition(parse_wds(pts, dts, &payload)?)
+                }
+                0x80 => {
+                    Segment::End(EndSegment { pts, dts })
+                }
+                _ => {
+                    return Err(ReadError::UnrecognizedKind { parsed_kind })
+                }
             }
         )
     }
@@ -300,38 +353,128 @@ fn parse_pds(
     )
 }
 
-fn parse_ods(
+fn parse_sods(
     pts: u32,
     dts: u32,
     payload: &[u8],
-) -> ReadResult<ObjectDefinitionSegment> {
+) -> ReadResult<SingleObjectDefinitionSegment> {
 
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
-    let parsed_sequence_flag = input.read_u8()?;
-    let sequence = match parsed_sequence_flag {
-        0xC0 => Sequence::Single,
-        0x80 => Sequence::First,
-        0x00 => Sequence::Middle,
-        0x40 => Sequence::Last,
-        _ => return Err(ReadError::UnrecognizedObjectSequenceFlag { parsed_sequence_flag }),
-    };
+
+    // If this fails, the caller is likely to blame.
+    debug_assert_eq!(input.read_u8()?, 0xC0);
+
+    // PGS streams record +4 bytes for the object data size, for some reason.
+    let parsed_data_length = input.read_u24::<BigEndian>()?;
+    let expected_data_length = (payload.len() - 7) as u32;
+
+    if parsed_data_length != expected_data_length {
+        return Err(
+            ReadError::InvalidObjectDataLength {
+                parsed_data_length,
+                expected_data_length,
+            }
+        )
+    }
+
+    let width = input.read_u16::<BigEndian>()?;
+    let height = input.read_u16::<BigEndian>()?;
+    let data = Vec::from(&input.into_inner()[11..]);
+
+    Ok(
+        SingleObjectDefinitionSegment {
+            pts,
+            dts,
+            id,
+            version,
+            width,
+            height,
+            data,
+        }
+    )
+}
+
+fn parse_iods(
+    pts: u32,
+    dts: u32,
+    payload: &[u8],
+) -> ReadResult<InitialObjectDefinitionSegment> {
+
+    let mut input = Cursor::new(&payload);
+    let id = input.read_u16::<BigEndian>()?;
+    let version = input.read_u8()?;
+
+    // If this fails, the caller is likely to blame.
+    debug_assert_eq!(input.read_u8()?, 0x80);
+
     let length = input.read_u24::<BigEndian>()? as usize;
     let width = input.read_u16::<BigEndian>()?;
     let height = input.read_u16::<BigEndian>()?;
     let data = Vec::from(&input.into_inner()[11..]);
 
     Ok(
-        ObjectDefinitionSegment {
+        InitialObjectDefinitionSegment {
             pts,
             dts,
             id,
             version,
-            sequence,
+            length,
             width,
             height,
-            length,
+            data,
+        }
+    )
+}
+
+fn parse_mods(
+    pts: u32,
+    dts: u32,
+    payload: &[u8],
+) -> ReadResult<MiddleObjectDefinitionSegment> {
+
+    let mut input = Cursor::new(&payload);
+    let id = input.read_u16::<BigEndian>()?;
+    let version = input.read_u8()?;
+
+    // If this fails, the caller is likely to blame.
+    debug_assert_eq!(input.read_u8()?, 0x00);
+
+    let data = Vec::from(&input.into_inner()[4..]);
+
+    Ok(
+        MiddleObjectDefinitionSegment {
+            pts,
+            dts,
+            id,
+            version,
+            data,
+        }
+    )
+}
+
+fn parse_fods(
+    pts: u32,
+    dts: u32,
+    payload: &[u8],
+) -> ReadResult<FinalObjectDefinitionSegment> {
+
+    let mut input = Cursor::new(&payload);
+    let id = input.read_u16::<BigEndian>()?;
+    let version = input.read_u8()?;
+
+    // If this fails, the caller is likely to blame.
+    debug_assert_eq!(input.read_u8()?, 0x40);
+
+    let data = Vec::from(&input.into_inner()[4..]);
+
+    Ok(
+        FinalObjectDefinitionSegment {
+            pts,
+            dts,
+            id,
+            version,
             data,
         }
     )

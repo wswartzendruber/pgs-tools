@@ -14,7 +14,6 @@ use pgs::{
         CompositionState,
         ReadSegmentExt,
         Segment,
-        Sequence,
         ReadError,
     },
 };
@@ -111,32 +110,40 @@ fn main() {
                         }
 
                     }
-                    Segment::ObjectDefinition(ods) => {
-                        println!("object_definition_segment({})", ts_to_timestamp(ods.pts));
-                        println!("  object_id = {}", ods.id);
-                        println!("  object_version_number = {}", ods.version);
-                        println!("  object_sequence = {}", match ods.sequence {
-                            Sequence::Single => "SINGLE",
-                            Sequence::First => "FIRST",
-                            Sequence::Middle => "MIDDLE",
-                            Sequence::Last => "LAST",
-                        });
-                        println!("  object_width = {}", ods.width);
-                        println!("  object_height = {}", ods.height);
-                        println!("  object_data = [{} bytes]", ods.data.len());
+                    Segment::SingleObjectDefinition(sods) => {
+                        println!("single_object_definition_segment({})", ts_to_timestamp(sods.pts));
+                        println!("  object_id = {}", sods.id);
+                        println!("  object_version = {}", sods.version);
+                        println!("  object_width = {}", sods.width);
+                        println!("  object_height = {}", sods.height);
+                        println!("  object_data = [{}]", sods.data.len());
+                    }
+                    Segment::InitialObjectDefinition(iods) => {
+                        println!("initial_object_definition_segment({})", ts_to_timestamp(iods.pts));
+                        println!("  object_id = {}", iods.id);
+                        println!("  object_version = {}", iods.version);
+                        println!("  object_length = {}", iods.length);
+                        println!("  object_width = {}", iods.width);
+                        println!("  object_height = {}", iods.height);
+                        println!("  object_data = [{}]", iods.data.len());
+                    }
+                    Segment::MiddleObjectDefinition(mods) => {
+                        println!("middle_object_definition_segment({})", ts_to_timestamp(mods.pts));
+                        println!("  object_id = {}", mods.id);
+                        println!("  object_version = {}", mods.version);
+                        println!("  object_data = [{}]", mods.data.len());
+                    }
+                    Segment::FinalObjectDefinition(fods) => {
+                        println!("final_object_definition_segment({})", ts_to_timestamp(fods.pts));
+                        println!("  object_id = {}", fods.id);
+                        println!("  object_version = {}", fods.version);
+                        println!("  object_data = [{}]", fods.data.len());
                     }
                     Segment::PaletteDefinition(pds) => {
                         println!("palette_definition_segment({})", ts_to_timestamp(pds.pts));
                         println!("  palette_id = {}", pds.id);
-                        println!("  palette_version_number = {}", pds.version);
-                        // TODO: Uncomment
-                        // for pe in pds.entries.iter() {
-                        //     println!("  palette_entry");
-                        //     println!("    y_value = {}", pe.y);
-                        //     println!("    cb_value = {}", pe.cb);
-                        //     println!("    cr_value = {}", pe.cr);
-                        //     println!("    t_value = {}", pe.alpha);
-                        // }
+                        println!("  palette_version = {}", pds.version);
+                        println!("  pallet_entries = [{}]", pds.entries.len());
                     }
                     Segment::End(es) => {
                         println!("end_segment({})", ts_to_timestamp(es.pts));

@@ -13,22 +13,24 @@ use super::{
     super::segment::{
         CompositionObject,
         EndSegment,
-        ObjectDefinitionSegment,
+        FinalObjectDefinitionSegment,
+        InitialObjectDefinitionSegment,
+        MiddleObjectDefinitionSegment,
         PaletteDefinitionSegment,
         PaletteEntry,
         PresentationCompositionSegment,
+        SingleObjectDefinitionSegment,
         WindowDefinition,
         WindowDefinitionSegment,
         WriteError as SegmentWriteError,
         WriteSegmentExt,
         Segment,
-        Sequence,
     },
 };
 use std::io::Write;
 use thiserror::Error as ThisError;
 
-const MAX_DATA_SIZE: usize = 65_512;
+const MAX_DATA_SIZE: usize = 65_508;
 
 pub type WriteResult<T> = Result<T, WriteError>;
 
@@ -59,56 +61,63 @@ impl<T> WriteDisplaySetExt for T where
 
     fn write_display_set(&mut self, display_set: &DisplaySet) -> WriteResult<()> {
 
-        let pcs = PresentationCompositionSegment {
-            pts: display_set.pts,
-            dts: display_set.dts,
-            width: display_set.width,
-            height: display_set.height,
-            frame_rate: display_set.frame_rate,
-            composition_number: display_set.composition.number,
-            composition_state: display_set.composition.state,
-            palette_update_id: display_set.palette_update_id,
-            composition_objects: display_set.composition.objects.iter().map(|(cid, co)|
-                CompositionObject {
-                    object_id: cid.object_id,
-                    window_id: cid.window_id,
-                    x: co.x,
-                    y: co.y,
-                    crop: co.crop.clone(),
-                }
-            ).collect::<Vec<CompositionObject>>(),
-        };
-        let wds = WindowDefinitionSegment {
-            pts: display_set.pts,
-            dts: display_set.dts,
-            windows: display_set.windows.iter().map(|(&window_id, window)|
-                WindowDefinition {
-                    id: window_id,
-                    x: window.x,
-                    y: window.y,
-                    width: window.width,
-                    height: window.height,
-                }
-            ).collect::<Vec<WindowDefinition>>(),
-        };
-        let pdss = display_set.palettes.iter().map(|(vid, palette)|
-            PaletteDefinitionSegment {
+        self.write_segment(&Segment::PresentationComposition(
+            PresentationCompositionSegment {
                 pts: display_set.pts,
                 dts: display_set.dts,
-                id: vid.id,
-                version: vid.version,
-                entries: palette.entries.iter().map(|(&id, entry)|
-                    PaletteEntry {
-                        id,
-                        y: entry.y,
-                        cr: entry.cr,
-                        cb: entry.cb,
-                        alpha: entry.alpha,
+                width: display_set.width,
+                height: display_set.height,
+                frame_rate: display_set.frame_rate,
+                composition_number: display_set.composition.number,
+                composition_state: display_set.composition.state,
+                palette_update_id: display_set.palette_update_id,
+                composition_objects: display_set.composition.objects.iter().map(|(cid, co)|
+                    CompositionObject {
+                        object_id: cid.object_id,
+                        window_id: cid.window_id,
+                        x: co.x,
+                        y: co.y,
+                        crop: co.crop.clone(),
                     }
-                ).collect::<Vec<PaletteEntry>>(),
+                ).collect::<Vec<CompositionObject>>(),
             }
-        ).collect::<Vec<PaletteDefinitionSegment>>();
-        let mut odss = Vec::new();
+        ))?;
+
+        self.write_segment(&Segment::WindowDefinition(
+            WindowDefinitionSegment {
+                pts: display_set.pts,
+                dts: display_set.dts,
+                windows: display_set.windows.iter().map(|(&window_id, window)|
+                    WindowDefinition {
+                        id: window_id,
+                        x: window.x,
+                        y: window.y,
+                        width: window.width,
+                        height: window.height,
+                    }
+                ).collect::<Vec<WindowDefinition>>(),
+            }
+        ))?;
+
+        for (vid, palette) in display_set.palettes.iter() {
+            self.write_segment(&Segment::PaletteDefinition(
+                PaletteDefinitionSegment {
+                    pts: display_set.pts,
+                    dts: display_set.dts,
+                    id: vid.id,
+                    version: vid.version,
+                    entries: palette.entries.iter().map(|(&id, entry)|
+                        PaletteEntry {
+                            id,
+                            y: entry.y,
+                            cr: entry.cr,
+                            cb: entry.cb,
+                            alpha: entry.alpha,
+                        }
+                    ).collect::<Vec<PaletteEntry>>(),
+                }
+            ))?;
+        }
 
         for (vid, object) in display_set.objects.iter() {
 
@@ -117,76 +126,57 @@ impl<T> WriteDisplaySetExt for T where
             let mut size = data.len();
 
             if size > MAX_DATA_SIZE {
-                odss.push(
-                    ObjectDefinitionSegment {
+                self.write_segment(&Segment::InitialObjectDefinition(
+                    InitialObjectDefinitionSegment {
                         pts: display_set.pts,
                         dts: display_set.dts,
                         id: vid.id,
                         version: vid.version,
-                        sequence: Sequence::First,
                         width: object.width,
                         height: object.height,
-                        length: data.len(),
+                        length: data.len() + 4,
                         data: Vec::from(&data[..MAX_DATA_SIZE]),
                     }
-                );
+                ))?;
                 index += MAX_DATA_SIZE;
                 size -= MAX_DATA_SIZE;
                 while size > MAX_DATA_SIZE {
-                    odss.push(
-                        ObjectDefinitionSegment {
+                    self.write_segment(&Segment::MiddleObjectDefinition(
+                        MiddleObjectDefinitionSegment {
                             pts: display_set.pts,
                             dts: display_set.dts,
                             id: vid.id,
                             version: vid.version,
-                            sequence: Sequence::Middle,
-                            width: object.width,
-                            height: object.height,
-                            length: data.len(),
                             data: Vec::from(&data[index..(index + MAX_DATA_SIZE)]),
                         }
-                    );
+                    ))?;
                     index += MAX_DATA_SIZE;
                     size -= MAX_DATA_SIZE;
                 }
-                odss.push(
-                    ObjectDefinitionSegment {
+                self.write_segment(&Segment::FinalObjectDefinition(
+                    FinalObjectDefinitionSegment {
                         pts: display_set.pts,
                         dts: display_set.dts,
                         id: vid.id,
                         version: vid.version,
-                        sequence: Sequence::Last,
-                        width: object.width,
-                        height: object.height,
-                        length: data.len(),
                         data: Vec::from(&data[index..]),
                     }
-                );
+                ))?;
             } else {
-                odss.push(
-                    ObjectDefinitionSegment {
+                self.write_segment(&Segment::SingleObjectDefinition(
+                    SingleObjectDefinitionSegment {
                         pts: display_set.pts,
                         dts: display_set.dts,
                         id: vid.id,
                         version: vid.version,
-                        sequence: Sequence::Single,
                         width: object.width,
                         height: object.height,
-                        length: data.len(),
                         data,
                     }
-                );
+                ))?;
             }
         }
 
-        self.write_segment(&Segment::PresentationComposition(pcs))?;
-        self.write_segment(&Segment::WindowDefinition(wds))?;
-        for pds in pdss.iter() {
-            self.write_segment(&Segment::PaletteDefinition(pds.clone()))?;
-        }
-        for ods in odss.iter() {
-            self.write_segment(&Segment::ObjectDefinition(ods.clone()))?;
-        }
         self.write_segment(&Segment::End(
             EndSegment {
                 pts: display_set.pts,

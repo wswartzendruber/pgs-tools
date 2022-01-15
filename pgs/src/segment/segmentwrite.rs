@@ -10,11 +10,13 @@
 
 use super::{
     CompositionState,
-    ObjectDefinitionSegment,
+    FinalObjectDefinitionSegment,
+    InitialObjectDefinitionSegment,
+    MiddleObjectDefinitionSegment,
     PaletteDefinitionSegment,
     PresentationCompositionSegment,
     Segment,
-    Sequence,
+    SingleObjectDefinitionSegment,
     WindowDefinitionSegment,
 };
 use std::io::{
@@ -86,11 +88,29 @@ impl<T> WriteSegmentExt for T where
                 self.write_u8(0x14)?;
                 generate_pds(pds)?
             }
-            Segment::ObjectDefinition(ods) => {
-                self.write_u32::<BigEndian>(ods.pts)?;
-                self.write_u32::<BigEndian>(ods.dts)?;
+            Segment::SingleObjectDefinition(sods) => {
+                self.write_u32::<BigEndian>(sods.pts)?;
+                self.write_u32::<BigEndian>(sods.dts)?;
                 self.write_u8(0x15)?;
-                generate_ods(ods)?
+                generate_sods(sods)?
+            }
+            Segment::InitialObjectDefinition(iods) => {
+                self.write_u32::<BigEndian>(iods.pts)?;
+                self.write_u32::<BigEndian>(iods.dts)?;
+                self.write_u8(0x15)?;
+                generate_iods(iods)?
+            }
+            Segment::MiddleObjectDefinition(mods) => {
+                self.write_u32::<BigEndian>(mods.pts)?;
+                self.write_u32::<BigEndian>(mods.dts)?;
+                self.write_u8(0x15)?;
+                generate_mods(mods)?
+            }
+            Segment::FinalObjectDefinition(fods) => {
+                self.write_u32::<BigEndian>(fods.pts)?;
+                self.write_u32::<BigEndian>(fods.dts)?;
+                self.write_u8(0x15)?;
+                generate_fods(fods)?
             }
             Segment::End(es) => {
                 self.write_u32::<BigEndian>(es.pts)?;
@@ -210,22 +230,36 @@ fn generate_pds(pds: &PaletteDefinitionSegment) -> WriteResult<Vec<u8>> {
     Ok(payload)
 }
 
-fn generate_ods(ods: &ObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
+fn generate_sods(ods: &SingleObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 
     let mut payload = vec![];
 
     payload.write_u16::<BigEndian>(ods.id)?;
     payload.write_u8(ods.version)?;
-    payload.write_u8(
-        match &ods.sequence {
-            Sequence::Single => 0xC0,
-            Sequence::First => 0x80,
-            Sequence::Middle => 0x00,
-            Sequence::Last => 0x40,
-        }
-    )?;
+    payload.write_u8(0xC0)?;
 
     if ods.data.len() <= 16_777_211 {
+        payload.write_u24::<BigEndian>(ods.data.len() as u32 + 4)?;
+    } else {
+        return Err(WriteError::ObjectDataTooLarge)
+    }
+
+    payload.write_u16::<BigEndian>(ods.width)?;
+    payload.write_u16::<BigEndian>(ods.height)?;
+    payload.write_all(&ods.data)?;
+
+    Ok(payload)
+}
+
+fn generate_iods(ods: &InitialObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
+
+    let mut payload = vec![];
+
+    payload.write_u16::<BigEndian>(ods.id)?;
+    payload.write_u8(ods.version)?;
+    payload.write_u8(0x80)?;
+
+    if ods.length <= 16_777_215 {
         payload.write_u24::<BigEndian>(ods.length as u32)?;
     } else {
         return Err(WriteError::ObjectDataTooLarge)
@@ -233,6 +267,30 @@ fn generate_ods(ods: &ObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 
     payload.write_u16::<BigEndian>(ods.width)?;
     payload.write_u16::<BigEndian>(ods.height)?;
+    payload.write_all(&ods.data)?;
+
+    Ok(payload)
+}
+
+fn generate_mods(ods: &MiddleObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
+
+    let mut payload = vec![];
+
+    payload.write_u16::<BigEndian>(ods.id)?;
+    payload.write_u8(ods.version)?;
+    payload.write_u8(0x00)?;
+    payload.write_all(&ods.data)?;
+
+    Ok(payload)
+}
+
+fn generate_fods(ods: &FinalObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
+
+    let mut payload = vec![];
+
+    payload.write_u16::<BigEndian>(ods.id)?;
+    payload.write_u8(ods.version)?;
+    payload.write_u8(0x40)?;
     payload.write_all(&ods.data)?;
 
     Ok(payload)

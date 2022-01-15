@@ -79,8 +79,14 @@ pub enum Segment {
     WindowDefinition(WindowDefinitionSegment),
     /// Represents a Palette Definition Segment (PDS).
     PaletteDefinition(PaletteDefinitionSegment),
-    /// Represents an Object Definition Segment (ODS).
-    ObjectDefinition(ObjectDefinitionSegment),
+    /// Represents a complete Object Definition Segment (ODS).
+    SingleObjectDefinition(SingleObjectDefinitionSegment),
+    /// Represents the initial portion of an Object Definition Segment (ODS).
+    InitialObjectDefinition(InitialObjectDefinitionSegment),
+    /// Represents a middle portion of an Object Definition Segment (ODS).
+    MiddleObjectDefinition(MiddleObjectDefinitionSegment),
+    /// Represents the final portion of an Object Definition Segment (ODS).
+    FinalObjectDefinition(FinalObjectDefinitionSegment),
     /// Represents an End Segment (ES).
     End(EndSegment),
 }
@@ -110,23 +116,6 @@ pub enum CompositionState {
 
 impl Default for CompositionState {
     fn default() -> Self { Self::EpochStart }
-}
-
-/// Defines this object's role in a possible multi-part object.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum Sequence {
-    /// This object is discrete and stands alone.
-    Single,
-    /// This object is the first portion in a multi-part object.
-    First,
-    /// This object is a middle portion in a multi-part object.
-    Middle,
-    /// This object is the last portion in a multi-part object.
-    Last,
-}
-
-impl Default for Sequence {
-    fn default() -> Self { Self::Single }
 }
 
 /// Defines a Presentation Composition Segment (PCS).
@@ -270,9 +259,9 @@ pub struct PaletteEntry {
     pub alpha: u8,
 }
 
-/// Defines a single object within an epoch.
+/// Defines a complete object within an epoch.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
-pub struct ObjectDefinitionSegment {
+pub struct SingleObjectDefinitionSegment {
     /// The timestamp indicating when composition decoding should start. In practice, this is
     /// the time at which the composition is displayed. All segments within a DS typically have
     /// identical values here.
@@ -284,15 +273,71 @@ pub struct ObjectDefinitionSegment {
     pub id: u16,
     /// The version increment of this object.
     pub version: u8,
-    /// This object's role in a possible multi-part object.
-    pub sequence: Sequence,
-    /// The declared length of this object's data buffer.
+    /// The width of this object.
+    pub width: u16,
+    /// The height of this object.
+    pub height: u16,
+    /// The RLE-compressed data for this object.
+    pub data: Vec<u8>,
+}
+
+/// Defines the initial portion of an object within an epoch.
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
+pub struct InitialObjectDefinitionSegment {
+    /// The timestamp indicating when composition decoding should start. In practice, this is
+    /// the time at which the composition is displayed. All segments within a DS typically have
+    /// identical values here.
+    pub pts: u32,
+    /// The timestamp indicating when the composition should be displayed. In practice, this
+    /// value is always zero.
+    pub dts: u32,
+    /// The ID of this object, which may be redefined within an epoch.
+    pub id: u16,
+    /// The version increment of this object.
+    pub version: u8,
+    /// The declared length of this object's data buffer, including all follow-on portions.
     pub length: usize,
     /// The width of this object.
     pub width: u16,
     /// The height of this object.
     pub height: u16,
-    /// The RLE-compressed data for this object (or portion thereof).
+    /// The RLE-compressed data for this portion of the completed object.
+    pub data: Vec<u8>,
+}
+
+/// Defines a middle portion of an object within an epoch.
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
+pub struct MiddleObjectDefinitionSegment {
+    /// The timestamp indicating when composition decoding should start. In practice, this is
+    /// the time at which the composition is displayed. All segments within a DS typically have
+    /// identical values here.
+    pub pts: u32,
+    /// The timestamp indicating when the composition should be displayed. In practice, this
+    /// value is always zero.
+    pub dts: u32,
+    /// The ID of this object, which may be redefined within an epoch.
+    pub id: u16,
+    /// The version increment of this object.
+    pub version: u8,
+    /// The RLE-compressed data for this portion of the completed object.
+    pub data: Vec<u8>,
+}
+
+/// Defines the final portion of an object within an epoch.
+#[derive(Clone, Debug, Default, Hash, PartialEq)]
+pub struct FinalObjectDefinitionSegment {
+    /// The timestamp indicating when composition decoding should start. In practice, this is
+    /// the time at which the composition is displayed. All segments within a DS typically have
+    /// identical values here.
+    pub pts: u32,
+    /// The timestamp indicating when the composition should be displayed. In practice, this
+    /// value is always zero.
+    pub dts: u32,
+    /// The ID of this object, which may be redefined within an epoch.
+    pub id: u16,
+    /// The version increment of this object.
+    pub version: u8,
+    /// The RLE-compressed data for this portion of the completed object.
     pub data: Vec<u8>,
 }
 

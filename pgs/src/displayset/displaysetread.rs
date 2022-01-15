@@ -22,7 +22,6 @@ use super::{
         ReadError as SegmentReadError,
         ReadSegmentExt,
         Segment,
-        Sequence,
     },
 };
 use std::{
@@ -60,14 +59,16 @@ pub enum ReadError {
     CompositionReferencesUnknownWindowId,
     #[error("palette update references unknown palette ID")]
     PaletteUpdateReferencesUnknownPaletteId,
-    /// The [Sequence] state of an object definition segment (ODS) is invalid.
+    /// The sequence state of an object definition segment (ODS) is invalid.
     #[error("invalid object sequence state")]
-    InvalidObjectSequence {
-        sequence: Sequence,
-    },
+    InvalidObjectSequence,
     /// A display set (DS) contains an incomplete multi-part object.
     #[error("incomplete object sequence")]
     IncompleteObjectSequence,
+    #[error("object portions have inconsistent IDs")]
+    InconsistentObjectId,
+    #[error("object portions have inconsistent versions")]
+    InconsistentObjectVersion,
     /// The bitstream declares an incomplete RLE sequence within an object definition segment
     /// (ODS).
     #[error("incomplete RLE sequence")]
@@ -81,6 +82,14 @@ pub enum ReadError {
     IncompleteRleLine,
 }
 
+#[derive(PartialEq)]
+enum Sequence {
+    Single,
+    Initial,
+    Middle,
+    Final,
+}
+
 pub trait ReadDisplaySetExt {
     fn read_display_set(&mut self) -> ReadResult<DisplaySet>;
 }
@@ -91,7 +100,8 @@ impl<T> ReadDisplaySetExt for T where
     fn read_display_set(&mut self) -> ReadResult<DisplaySet> {
 
         let mut sequence = Sequence::Single;
-        let mut data = Vec::new();
+        let mut initial_object = None;
+        let mut middle_objects = Vec::new();
         let mut windows = BTreeMap::<u8, Window>::new();
         let mut palettes = BTreeMap::<Vid<u8>, Palette>::new();
         let mut objects = BTreeMap::<Vid<u16>, Object>::new();
@@ -162,65 +172,130 @@ impl<T> ReadDisplaySetExt for T where
                         },
                     );
                 }
-                Segment::ObjectDefinition(ods) => {
-                    if ods.pts != pts {
-                        return Err(ReadError::InconsistentPts)
-                    }
-                    if ods.dts != dts {
-                        return Err(ReadError::InconsistentDts)
-                    }
-                    let vid = Vid {
-                        id: ods.id,
-                        version: ods.version,
-                    };
-                    if objects.contains_key(&vid) {
-                        return Err(ReadError::DuplicateObjectVid)
-                    }
-                    match sequence {
-                        Sequence::Single | Sequence::Last => {
-                            match ods.sequence {
-                                Sequence::Single | Sequence::First => {
-                                    data.append(&mut ods.data.clone());
-                                }
-                                Sequence::Middle | Sequence::Last => {
-                                    return Err(
-                                        ReadError::InvalidObjectSequence {
-                                            sequence: ods.sequence
-                                        }
-                                    )
-                                }
-                            }
+                Segment::SingleObjectDefinition(sods) => {
+                    if sequence == Sequence::Single || sequence == Sequence::Final {
+                        if sods.pts != pts {
+                            return Err(ReadError::InconsistentPts)
                         }
-                        Sequence::First | Sequence::Middle => {
-                            match ods.sequence {
-                                Sequence::Middle | Sequence::Last => {
-                                    data.append(&mut ods.data.clone());
-                                }
-                                Sequence::Single | Sequence::First => {
-                                    return Err(
-                                        ReadError::InvalidObjectSequence {
-                                            sequence: ods.sequence
-                                        }
-                                    )
-                                }
-                            }
+                        if sods.dts != dts {
+                            return Err(ReadError::InconsistentDts)
                         }
-                    }
-                    if ods.sequence == Sequence::Single || ods.sequence == Sequence::Last {
+                        let vid = Vid {
+                            id: sods.id,
+                            version: sods.version,
+                        };
+                        if objects.contains_key(&vid) {
+                            return Err(ReadError::DuplicateObjectVid)
+                        }
                         objects.insert(
                             vid,
                             Object {
-                                width: ods.width,
-                                height: ods.height,
-                                lines: rle_decompress(&data)?,
+                                width: sods.width,
+                                height: sods.height,
+                                lines: rle_decompress(&sods.data)?,
                             },
                         );
-                        data.clear();
+                        sequence = Sequence::Single;
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
                     }
-                    sequence = ods.sequence;
+                }
+                Segment::InitialObjectDefinition(iods) => {
+                    if sequence == Sequence::Single || sequence == Sequence::Final {
+                        if iods.pts != pts {
+                            return Err(ReadError::InconsistentPts)
+                        }
+                        if iods.dts != dts {
+                            return Err(ReadError::InconsistentDts)
+                        }
+                        let vid = Vid {
+                            id: iods.id,
+                            version: iods.version,
+                        };
+                        if objects.contains_key(&vid) {
+                            return Err(ReadError::DuplicateObjectVid)
+                        }
+                        initial_object = Some(iods);
+                        sequence = Sequence::Initial;
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
+                    }
+                }
+                Segment::MiddleObjectDefinition(mods) => {
+                    if sequence == Sequence::Initial || sequence == Sequence::Middle {
+                        match &initial_object {
+                            Some(iods) => {
+                                if mods.pts != pts {
+                                    return Err(ReadError::InconsistentPts)
+                                }
+                                if mods.dts != dts {
+                                    return Err(ReadError::InconsistentDts)
+                                }
+                                if mods.id != iods.id {
+                                    return Err(ReadError::InconsistentObjectId)
+                                }
+                                if mods.version != iods.version {
+                                    return Err(ReadError::InconsistentObjectVersion)
+                                }
+                                middle_objects.push(mods);
+                                sequence = Sequence::Middle;
+                            }
+                            None => {
+                                panic!("initial_object is not set")
+                            }
+                        }
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
+                    }
+                }
+                Segment::FinalObjectDefinition(fods) => {
+                    if sequence == Sequence::Initial || sequence == Sequence::Middle {
+                        match &initial_object {
+                            Some(iods) => {
+                                if fods.pts != pts {
+                                    return Err(ReadError::InconsistentPts)
+                                }
+                                if fods.dts != dts {
+                                    return Err(ReadError::InconsistentDts)
+                                }
+                                if fods.id != iods.id {
+                                    return Err(ReadError::InconsistentObjectId)
+                                }
+                                if fods.version != iods.version {
+                                    return Err(ReadError::InconsistentObjectVersion)
+                                }
+                                let vid = Vid {
+                                    id: iods.id,
+                                    version: iods.version,
+                                };
+                                let mut data = Vec::new();
+                                data.append(&mut iods.data.clone());
+                                for mods in middle_objects.iter() {
+                                    data.append(&mut mods.data.clone());
+                                }
+                                data.append(&mut fods.data.clone());
+                                objects.insert(
+                                    vid,
+                                    Object {
+                                        width: iods.width,
+                                        height: iods.height,
+                                        lines: rle_decompress(&data)?,
+                                    },
+                                );
+                                initial_object = None;
+                                middle_objects.clear();
+                                sequence = Sequence::Final;
+                            }
+                            None => {
+                                panic!("initial_object is not set")
+                            }
+                        }
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
+                    }
                 }
                 Segment::End(es) => {
-                    if sequence != Sequence::Single && sequence != Sequence::Last {
+                    if sequence != Sequence::Single && sequence != Sequence::Final {
                         return Err(ReadError::IncompleteObjectSequence)
                     }
                     if es.pts != pts {
