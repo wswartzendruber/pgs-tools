@@ -362,9 +362,10 @@ fn parse_sods(
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
+    let sequence = input.read_u8()?;
 
     // If this fails, the caller is likely to blame.
-    debug_assert_eq!(input.read_u8()?, 0xC0);
+    debug_assert_eq!(sequence, 0xC0);
 
     // PGS streams record +4 bytes for the object data size, for some reason.
     let parsed_data_length = input.read_u24::<BigEndian>()?;
@@ -405,9 +406,10 @@ fn parse_iods(
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
+    let sequence = input.read_u8()?;
 
     // If this fails, the caller is likely to blame.
-    debug_assert_eq!(input.read_u8()?, 0x80);
+    debug_assert_eq!(sequence, 0x80);
 
     let length = input.read_u24::<BigEndian>()? as usize;
     let width = input.read_u16::<BigEndian>()?;
@@ -437,9 +439,10 @@ fn parse_mods(
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
+    let sequence = input.read_u8()?;
 
     // If this fails, the caller is likely to blame.
-    debug_assert_eq!(input.read_u8()?, 0x00);
+    debug_assert_eq!(sequence, 0x00);
 
     let data = Vec::from(&input.into_inner()[4..]);
 
@@ -463,9 +466,10 @@ fn parse_fods(
     let mut input = Cursor::new(&payload);
     let id = input.read_u16::<BigEndian>()?;
     let version = input.read_u8()?;
+    let sequence = input.read_u8()?;
 
     // If this fails, the caller is likely to blame.
-    debug_assert_eq!(input.read_u8()?, 0x40);
+    debug_assert_eq!(sequence, 0x40);
 
     let data = Vec::from(&input.into_inner()[4..]);
 
