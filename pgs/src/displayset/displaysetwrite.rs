@@ -30,7 +30,8 @@ use super::{
 use std::io::Write;
 use thiserror::Error as ThisError;
 
-const MAX_DATA_SIZE: usize = 65_508;
+const IODS_DATA_SIZE: usize = 65_508;
+const MODS_DATA_SIZE: usize = 65_515;
 
 pub type WriteResult<T> = Result<T, WriteError>;
 
@@ -83,21 +84,23 @@ impl<T> WriteDisplaySetExt for T where
             }
         ))?;
 
-        self.write_segment(&Segment::WindowDefinition(
-            WindowDefinitionSegment {
-                pts: display_set.pts,
-                dts: display_set.dts,
-                windows: display_set.windows.iter().map(|(&window_id, window)|
-                    WindowDefinition {
-                        id: window_id,
-                        x: window.x,
-                        y: window.y,
-                        width: window.width,
-                        height: window.height,
-                    }
-                ).collect::<Vec<WindowDefinition>>(),
-            }
-        ))?;
+        if !display_set.windows.is_empty() {
+            self.write_segment(&Segment::WindowDefinition(
+                WindowDefinitionSegment {
+                    pts: display_set.pts,
+                    dts: display_set.dts,
+                    windows: display_set.windows.iter().map(|(&window_id, window)|
+                        WindowDefinition {
+                            id: window_id,
+                            x: window.x,
+                            y: window.y,
+                            width: window.width,
+                            height: window.height,
+                        }
+                    ).collect::<Vec<WindowDefinition>>(),
+                }
+            ))?;
+        }
 
         for (vid, palette) in display_set.palettes.iter() {
             self.write_segment(&Segment::PaletteDefinition(
@@ -125,7 +128,7 @@ impl<T> WriteDisplaySetExt for T where
             let mut index = 0;
             let mut size = data.len();
 
-            if size > MAX_DATA_SIZE {
+            if size > IODS_DATA_SIZE {
                 self.write_segment(&Segment::InitialObjectDefinition(
                     InitialObjectDefinitionSegment {
                         pts: display_set.pts,
@@ -135,23 +138,23 @@ impl<T> WriteDisplaySetExt for T where
                         width: object.width,
                         height: object.height,
                         length: data.len() + 4,
-                        data: Vec::from(&data[..MAX_DATA_SIZE]),
+                        data: Vec::from(&data[..IODS_DATA_SIZE]),
                     }
                 ))?;
-                index += MAX_DATA_SIZE;
-                size -= MAX_DATA_SIZE;
-                while size > MAX_DATA_SIZE {
+                index += IODS_DATA_SIZE;
+                size -= IODS_DATA_SIZE;
+                while size > MODS_DATA_SIZE {
                     self.write_segment(&Segment::MiddleObjectDefinition(
                         MiddleObjectDefinitionSegment {
                             pts: display_set.pts,
                             dts: display_set.dts,
                             id: vid.id,
                             version: vid.version,
-                            data: Vec::from(&data[index..(index + MAX_DATA_SIZE)]),
+                            data: Vec::from(&data[index..(index + MODS_DATA_SIZE)]),
                         }
                     ))?;
-                    index += MAX_DATA_SIZE;
-                    size -= MAX_DATA_SIZE;
+                    index += MODS_DATA_SIZE;
+                    size -= MODS_DATA_SIZE;
                 }
                 self.write_segment(&Segment::FinalObjectDefinition(
                     FinalObjectDefinitionSegment {
