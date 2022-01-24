@@ -248,9 +248,9 @@ impl<T> ReadDisplaySetExt for T where
                         return Err(ReadError::InvalidObjectSequence)
                     }
                 }
-                Segment::FinalObjectDefinition(fods) => {
+                Segment::FinalObjectDefinition(mut fods) => {
                     if sequence == Sequence::Initial || sequence == Sequence::Middle {
-                        match &initial_object {
+                        match &mut initial_object {
                             Some(iods) => {
                                 if fods.pts != pts {
                                     return Err(ReadError::InconsistentPts)
@@ -269,11 +269,11 @@ impl<T> ReadDisplaySetExt for T where
                                     version: iods.version,
                                 };
                                 let mut data = Vec::new();
-                                data.append(&mut iods.data.clone());
-                                for mods in middle_objects.iter() {
-                                    data.append(&mut mods.data.clone());
+                                data.append(&mut iods.data);
+                                for mods in middle_objects.iter_mut() {
+                                    data.append(&mut mods.data);
                                 }
-                                data.append(&mut fods.data.clone());
+                                data.append(&mut fods.data);
                                 objects.insert(
                                     vid,
                                     Object {
