@@ -110,9 +110,15 @@ pub struct CompositionObject {
 /// Defines a window within a display set.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Window {
+    /// The horizontal offset of the window’s top-left corner relative to the top-left corner of
+    /// the screen.
     pub x: u16,
+    /// The vertical offset of the window’s top-left corner relative to the top-left corner of
+    /// the screen.
     pub y: u16,
+    /// The width of the window in pixels.
     pub width: u16,
+    /// The height of the window in pixels.
     pub height: u16,
 }
 
@@ -144,15 +150,23 @@ pub struct PaletteEntry {
     pub alpha: u8,
 }
 
+/// Defines an object within a display set.
 #[derive(Clone, Debug, Default, Hash, PartialEq)]
 pub struct Object {
+    /// The width of this object in pixels.
     pub width: u16,
+    /// The height of this object in pixels.
     pub height: u16,
+    /// The line data of this object. Each [u8] value refers to a palette entry. `lines[2][4]`
+    /// would refer to the fifth pixel on the third line.
     pub lines: Vec<Vec<u8>>,
 }
 
+/// A versioned identifier.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Vid<T> {
+    /// The ID.
     pub id: T,
+    /// The version.
     pub version: u8,
 }

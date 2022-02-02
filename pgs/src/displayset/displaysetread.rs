@@ -30,45 +30,65 @@ use std::{
 };
 use thiserror::Error as ThisError;
 
+/// A specialized [`Result`](std::result::Result) type for display set-reading operations.
 pub type ReadResult<T> = Result<T, ReadError>;
 
+/// The error type for [ReadDisplaySetExt].
+///
+/// Errors are caused by either an invalid combination of segments, an invalid bitstream, or by
+/// an underlying I/O error.
 #[derive(ThisError, Debug)]
 pub enum ReadError {
+    /// The display set could not be read because of an underlying segment error.
     #[error("segment value error")]
     SegmentError {
         #[from]
         source: SegmentReadError,
     },
+    /// The first segment in the display set was not a presentation composition segment (PCS).
     #[error("first segment is not a presentation composition segment")]
     MissingPresentationCompositionSegment,
+    /// A segment has been encountered after an end segment (ES) was processed.
     #[error("segment encountered after end segment")]
     SegmentAfterEnd,
+    /// The segments within the display set do not have consistent PTS values.
     #[error("PTS is not consistent with presentation composition segment")]
     InconsistentPts,
+    /// The segments within the display set do not have consistent DTS values.
     #[error("DTS is not consistent with presentation composition segment")]
     InconsistentDts,
+    /// A presentation composition segment (PCS) has been encountered outside of the first
+    /// segment.
     #[error("unexpected presentation composition segment within display set")]
     UnexpectedPresentationCompositionSegment,
+    /// A single window ID has been defined twice.
     #[error("duplicate window ID detected")]
     DuplicateWindowId,
+    /// A single palette ID of the same version has been defined twice.
     #[error("duplicate palette ID and version detected")]
     DuplicatePaletteVid,
+    /// A single object ID of the same version has been defined twice.
     #[error("duplicate object ID and version detected")]
     DuplicateObjectVid,
+    /// The display set composition definition references an unknown object ID.
     #[error("composition references unknown object ID")]
     CompositionReferencesUnknownObjectId,
+    /// The display set composition definition references an unknown window ID.
     #[error("composition references unknown window ID")]
     CompositionReferencesUnknownWindowId,
+    /// A palette update sequence references an unknown palette ID.
     #[error("palette update references unknown palette ID")]
     PaletteUpdateReferencesUnknownPaletteId,
     /// The sequence state of an object definition segment (ODS) is invalid.
     #[error("invalid object sequence state")]
     InvalidObjectSequence,
-    /// A display set (DS) contains an incomplete multi-part object.
+    /// The display set contains an incomplete multi-part object.
     #[error("incomplete object sequence")]
     IncompleteObjectSequence,
+    /// The different portions of a compound object have inconsistent IDs.
     #[error("object portions have inconsistent IDs")]
     InconsistentObjectId,
+    /// The different portions of a compound object have inconsistent versions.
     #[error("object portions have inconsistent versions")]
     InconsistentObjectVersion,
     /// The bitstream declares an incomplete RLE sequence within an object definition segment
@@ -92,7 +112,9 @@ enum Sequence {
     Final,
 }
 
+/// Allows reading display sets from a source.
 pub trait ReadDisplaySetExt {
+    /// Reads the next segment from a source.
     fn read_display_set(&mut self) -> ReadResult<DisplaySet>;
 }
 

@@ -49,8 +49,9 @@ pub enum WriteError {
     /// definitions.
     #[error("too many window definitions")]
     TooManyWindowDefinitions,
-    /// The [`Segment`] ([`ObjectDefinitionSegment`]) being written has more than 16,777,211
-    /// compressed bytes of data.
+    /// The [`Segment`] ([`SingleObjectDefinitionSegment`], [`InitialObjectDefinitionSegment`],
+    /// [`MiddleObjectDefinitionSegment`], [`FinalObjectDefinitionSegment`]) being written has
+    /// too much compressed data.
     #[error("object data is too large")]
     ObjectDataTooLarge,
 }
@@ -232,6 +233,8 @@ fn generate_pds(pds: &PaletteDefinitionSegment) -> WriteResult<Vec<u8>> {
 
 fn generate_sods(ods: &SingleObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 
+    // TODO: Validate data size (16-bit).
+
     let mut payload = vec![];
 
     payload.write_u16::<BigEndian>(ods.id)?;
@@ -252,6 +255,8 @@ fn generate_sods(ods: &SingleObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 }
 
 fn generate_iods(ods: &InitialObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
+
+    // TODO: Validate data size (16-bit).
 
     let mut payload = vec![];
 
@@ -274,6 +279,8 @@ fn generate_iods(ods: &InitialObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 
 fn generate_mods(ods: &MiddleObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 
+    // TODO: Validate data size (16-bit).
+
     let mut payload = vec![];
 
     payload.write_u16::<BigEndian>(ods.id)?;
@@ -285,6 +292,8 @@ fn generate_mods(ods: &MiddleObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
 }
 
 fn generate_fods(ods: &FinalObjectDefinitionSegment) -> WriteResult<Vec<u8>> {
+
+    // TODO: Validate data size (16-bit).
 
     let mut payload = vec![];
 

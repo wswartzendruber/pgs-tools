@@ -96,7 +96,7 @@ pub enum ReadError {
     /// - `0xC0` (declares a single, complete object)
     /// - `0x80` (declares the initial portion of an object)
     /// - `0x40` (declares the final portion of an object)
-    /// Otherwise, the segment is interpreted to be a middle portion.
+    /// Otherwise, the segment is interpreted as being a middle portion.
     #[error("unrecognized object definition sequence flag")]
     UnrecognizedObjectSequenceFlag {
         /// The sequence flag that was parsed.

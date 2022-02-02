@@ -51,9 +51,11 @@
 //! ## Object Definition Segment (ODS)
 //!
 //! An ODS defines a sequence of pixels with each pixel consisting of a single ID. These IDs map
-//! back to the pixel values encountered in earlier PDS segments.
+//! back to the pixel values encountered in earlier PDS segments. An ODS may define a single
+//! object in and of itself, or may define a portion of an object.
 //!
-//! See: [ObjectDefinitionSegment]
+//! See: [SingleObjectDefinitionSegment], [InitialObjectDefinitionSegment],
+//! [MiddleObjectDefinitionSegment], [FinalObjectDefinitionSegment]
 //!
 //! ## End Segment (ES)
 //!
@@ -273,9 +275,9 @@ pub struct SingleObjectDefinitionSegment {
     pub id: u16,
     /// The version increment of this object.
     pub version: u8,
-    /// The width of this object.
+    /// The width of this object in pixels.
     pub width: u16,
-    /// The height of this object.
+    /// The height of this object in pixels.
     pub height: u16,
     /// The RLE-compressed data for this object.
     pub data: Vec<u8>,
@@ -291,15 +293,17 @@ pub struct InitialObjectDefinitionSegment {
     /// The timestamp indicating when the composition should be displayed. In practice, this
     /// value is always zero.
     pub dts: u32,
-    /// The ID of this object, which may be redefined within an epoch.
+    /// The ID of this object, which may be redefined within an epoch. Other portions of this
+    /// object should have the same ID.
     pub id: u16,
-    /// The version increment of this object.
+    /// The version increment of this object. Other portions of this object should have the same
+    /// ID.
     pub version: u8,
     /// The declared length of this object's data buffer, including all follow-on portions.
     pub length: usize,
-    /// The width of this object.
+    /// The width of this complete object in pixels, including follow-on portions.
     pub width: u16,
-    /// The height of this object.
+    /// The height of this complete object in pixels, including follow-on portions.
     pub height: u16,
     /// The RLE-compressed data for this portion of the completed object.
     pub data: Vec<u8>,
@@ -315,9 +319,11 @@ pub struct MiddleObjectDefinitionSegment {
     /// The timestamp indicating when the composition should be displayed. In practice, this
     /// value is always zero.
     pub dts: u32,
-    /// The ID of this object, which may be redefined within an epoch.
+    /// The ID of this object, which may be redefined within an epoch. Other portions of this
+    /// object should have the same ID.
     pub id: u16,
-    /// The version increment of this object.
+    /// The version increment of this object. Other portions of this object should have the same
+    /// ID.
     pub version: u8,
     /// The RLE-compressed data for this portion of the completed object.
     pub data: Vec<u8>,
@@ -333,9 +339,11 @@ pub struct FinalObjectDefinitionSegment {
     /// The timestamp indicating when the composition should be displayed. In practice, this
     /// value is always zero.
     pub dts: u32,
-    /// The ID of this object, which may be redefined within an epoch.
+    /// The ID of this object, which may be redefined within an epoch. Other portions of this
+    /// object should have the same ID.
     pub id: u16,
-    /// The version increment of this object.
+    /// The version increment of this object. Other portions of this object should have the same
+    /// ID.
     pub version: u8,
     /// The RLE-compressed data for this portion of the completed object.
     pub data: Vec<u8>,
