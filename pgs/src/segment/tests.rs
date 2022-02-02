@@ -1,7 +1,7 @@
 /*
  * Any copyright is dedicated to the Public Domain.
  *
- * Copyright 2021 William Swartzendruber
+ * Copyright 2022 William Swartzendruber
  *
  * SPDX-License-Identifier: CC0-1.0
  */
@@ -255,14 +255,12 @@ fn test_ods_single() {
 
     let mut rng = thread_rng();
     let mut data = Vec::with_capacity(1_024); rng.fill_bytes(&mut data);
-    let segment = Segment::ObjectDefinition(
-        ObjectDefinitionSegment {
+    let segment = Segment::SingleObjectDefinition(
+        SingleObjectDefinitionSegment {
             pts: rng.gen(),
             dts: rng.gen(),
             id: rng.gen(),
             version: rng.gen(),
-            sequence: Sequence::Single,
-            length: data.len(),
             width: rng.gen(),
             height: rng.gen(),
             data,
@@ -277,16 +275,33 @@ fn test_ods_first() {
 
     let mut rng = thread_rng();
     let mut data = Vec::with_capacity(1_024); rng.fill_bytes(&mut data);
-    let segment = Segment::ObjectDefinition(
-        ObjectDefinitionSegment {
+    let segment = Segment::InitialObjectDefinition(
+        InitialObjectDefinitionSegment {
             pts: rng.gen(),
             dts: rng.gen(),
             id: rng.gen(),
             version: rng.gen(),
-            sequence: Sequence::First,
             length: data.len(),
             width: rng.gen(),
             height: rng.gen(),
+            data,
+        }
+    );
+
+    cycle(&segment);
+}
+
+#[test]
+fn test_ods_middle() {
+
+    let mut rng = thread_rng();
+    let mut data = Vec::with_capacity(1_024); rng.fill_bytes(&mut data);
+    let segment = Segment::MiddleObjectDefinition(
+        MiddleObjectDefinitionSegment {
+            pts: rng.gen(),
+            dts: rng.gen(),
+            id: rng.gen(),
+            version: rng.gen(),
             data,
         }
     );
@@ -299,16 +314,12 @@ fn test_ods_last() {
 
     let mut rng = thread_rng();
     let mut data = Vec::with_capacity(1_024); rng.fill_bytes(&mut data);
-    let segment = Segment::ObjectDefinition(
-        ObjectDefinitionSegment {
+    let segment = Segment::FinalObjectDefinition(
+        FinalObjectDefinitionSegment {
             pts: rng.gen(),
             dts: rng.gen(),
             id: rng.gen(),
             version: rng.gen(),
-            sequence: Sequence::Last,
-            length: data.len(),
-            width: rng.gen(),
-            height: rng.gen(),
             data,
         }
     );
