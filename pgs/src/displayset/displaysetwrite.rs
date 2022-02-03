@@ -42,10 +42,6 @@ pub enum WriteError {
         #[from]
         source: SegmentWriteError,
     },
-    #[error("composition references unknown object ID")]
-    CompositionReferencesUnknownObjectId,
-    #[error("composition references unknown window ID")]
-    CompositionReferencesUnknownWindowId,
     /// The [`Segment`] ([`ObjectDefinitionSegment`]) being written has a line with more than
     /// 16,383 pixels.
     #[error("object line too long")]
@@ -53,26 +49,44 @@ pub enum WriteError {
 }
 
 pub trait WriteDisplaySetExt {
-    fn write_display_set(&mut self, display_set: &DisplaySet) -> WriteResult<()>;
+    fn write_display_set(&mut self, display_set: DisplaySet) -> WriteResult<()>;
 }
 
 impl<T> WriteDisplaySetExt for T where
     T: Write,
 {
 
-    fn write_display_set(&mut self, display_set: &DisplaySet) -> WriteResult<()> {
+    fn write_display_set(&mut self, display_set: DisplaySet) -> WriteResult<()> {
 
-        self.write_segment(&Segment::PresentationComposition(
+        let segments = Vec::<Segment>::try_from(display_set)?;
+
+        for segment in segments.into_iter() {
+            self.write_segment(&segment)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl TryFrom<DisplaySet> for Vec<Segment> {
+
+    type Error = WriteError;
+
+    fn try_from(value: DisplaySet) -> Result<Self, Self::Error> {
+
+        let mut segments = Vec::<Segment>::new();
+
+        segments.push(Segment::PresentationComposition(
             PresentationCompositionSegment {
-                pts: display_set.pts,
-                dts: display_set.dts,
-                width: display_set.width,
-                height: display_set.height,
-                frame_rate: display_set.frame_rate,
-                composition_number: display_set.composition.number,
-                composition_state: display_set.composition.state,
-                palette_update_id: display_set.palette_update_id,
-                composition_objects: display_set.composition.objects.iter().map(|(cid, co)|
+                pts: value.pts,
+                dts: value.dts,
+                width: value.width,
+                height: value.height,
+                frame_rate: value.frame_rate,
+                composition_number: value.composition.number,
+                composition_state: value.composition.state,
+                palette_update_id: value.palette_update_id,
+                composition_objects: value.composition.objects.iter().map(|(cid, co)|
                     CompositionObject {
                         object_id: cid.object_id,
                         window_id: cid.window_id,
@@ -82,14 +96,14 @@ impl<T> WriteDisplaySetExt for T where
                     }
                 ).collect::<Vec<CompositionObject>>(),
             }
-        ))?;
+        ));
 
-        if !display_set.windows.is_empty() {
-            self.write_segment(&Segment::WindowDefinition(
+        if !value.windows.is_empty() {
+            segments.push(Segment::WindowDefinition(
                 WindowDefinitionSegment {
-                    pts: display_set.pts,
-                    dts: display_set.dts,
-                    windows: display_set.windows.iter().map(|(&window_id, window)|
+                    pts: value.pts,
+                    dts: value.dts,
+                    windows: value.windows.iter().map(|(&window_id, window)|
                         WindowDefinition {
                             id: window_id,
                             x: window.x,
@@ -99,14 +113,14 @@ impl<T> WriteDisplaySetExt for T where
                         }
                     ).collect::<Vec<WindowDefinition>>(),
                 }
-            ))?;
+            ));
         }
 
-        for (vid, palette) in display_set.palettes.iter() {
-            self.write_segment(&Segment::PaletteDefinition(
+        for (vid, palette) in value.palettes.iter() {
+            segments.push(Segment::PaletteDefinition(
                 PaletteDefinitionSegment {
-                    pts: display_set.pts,
-                    dts: display_set.dts,
+                    pts: value.pts,
+                    dts: value.dts,
                     id: vid.id,
                     version: vid.version,
                     entries: palette.entries.iter().map(|(&id, entry)|
@@ -119,20 +133,20 @@ impl<T> WriteDisplaySetExt for T where
                         }
                     ).collect::<Vec<PaletteEntry>>(),
                 }
-            ))?;
+            ));
         }
 
-        for (vid, object) in display_set.objects.iter() {
+        for (vid, object) in value.objects.iter() {
 
             let data = rle_compress(&object.lines)?;
             let mut index = 0;
             let mut size = data.len();
 
             if size > IODS_DATA_SIZE {
-                self.write_segment(&Segment::InitialObjectDefinition(
+                segments.push(Segment::InitialObjectDefinition(
                     InitialObjectDefinitionSegment {
-                        pts: display_set.pts,
-                        dts: display_set.dts,
+                        pts: value.pts,
+                        dts: value.dts,
                         id: vid.id,
                         version: vid.version,
                         width: object.width,
@@ -140,54 +154,54 @@ impl<T> WriteDisplaySetExt for T where
                         length: data.len() + 4,
                         data: Vec::from(&data[..IODS_DATA_SIZE]),
                     }
-                ))?;
+                ));
                 index += IODS_DATA_SIZE;
                 size -= IODS_DATA_SIZE;
                 while size > MODS_DATA_SIZE {
-                    self.write_segment(&Segment::MiddleObjectDefinition(
+                    segments.push(Segment::MiddleObjectDefinition(
                         MiddleObjectDefinitionSegment {
-                            pts: display_set.pts,
-                            dts: display_set.dts,
+                            pts: value.pts,
+                            dts: value.dts,
                             id: vid.id,
                             version: vid.version,
                             data: Vec::from(&data[index..(index + MODS_DATA_SIZE)]),
                         }
-                    ))?;
+                    ));
                     index += MODS_DATA_SIZE;
                     size -= MODS_DATA_SIZE;
                 }
-                self.write_segment(&Segment::FinalObjectDefinition(
+                segments.push(Segment::FinalObjectDefinition(
                     FinalObjectDefinitionSegment {
-                        pts: display_set.pts,
-                        dts: display_set.dts,
+                        pts: value.pts,
+                        dts: value.dts,
                         id: vid.id,
                         version: vid.version,
                         data: Vec::from(&data[index..]),
                     }
-                ))?;
+                ));
             } else {
-                self.write_segment(&Segment::SingleObjectDefinition(
+                segments.push(Segment::SingleObjectDefinition(
                     SingleObjectDefinitionSegment {
-                        pts: display_set.pts,
-                        dts: display_set.dts,
+                        pts: value.pts,
+                        dts: value.dts,
                         id: vid.id,
                         version: vid.version,
                         width: object.width,
                         height: object.height,
                         data,
                     }
-                ))?;
+                ));
             }
         }
 
-        self.write_segment(&Segment::End(
+        segments.push(Segment::End(
             EndSegment {
-                pts: display_set.pts,
-                dts: display_set.dts,
+                pts: value.pts,
+                dts: value.dts,
             }
-        ))?;
+        ));
 
-        Ok(())
+        Ok(segments)
     }
 }
 

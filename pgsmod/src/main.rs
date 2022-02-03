@@ -220,8 +220,8 @@ fn main() {
 
         let mut objects = HashMap::<u16, Object>::new();
 
-        match &mut input.read_display_set() {
-            Ok(display_set) => {
+        match input.read_display_set() {
+            Ok(mut display_set) => {
 
                 //
                 // VALIDATE/SET SCREEN SIZE
