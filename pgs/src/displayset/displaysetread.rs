@@ -45,12 +45,18 @@ pub enum ReadError {
         #[from]
         source: SegmentReadError,
     },
+    /// The display set contains no segments.
+    #[error("no segments")]
+    NoSegments,
     /// The first segment in the display set was not a presentation composition segment (PCS).
     #[error("first segment is not a presentation composition segment")]
     MissingPresentationCompositionSegment,
     /// A segment has been encountered after an end segment (ES) was processed.
     #[error("segment encountered after end segment")]
     SegmentAfterEnd,
+    /// The display set contains no end segments (ES).
+    #[error("display set contains no end segment")]
+    MissingEndSegment,
     /// The segments within the display set do not have consistent PTS values.
     #[error("PTS is not consistent with presentation composition segment")]
     InconsistentPts,
@@ -159,7 +165,6 @@ impl DisplaySet {
         T: IntoIterator<Item = Segment>
     {
 
-        let mut pcs = None;
         let mut es = None;
         let mut sequence = Sequence::Single;
         let mut initial_object = None;
@@ -168,260 +173,221 @@ impl DisplaySet {
         let mut palettes = BTreeMap::<Vid<u8>, Palette>::new();
         let mut objects = BTreeMap::<Vid<u16>, Object>::new();
         let mut composition_objects = BTreeMap::<Cid, CompositionObject>::new();
+        let mut iterator = value.into_iter();
+        let pcs = match iterator.next() {
+            Some(segment) => {
+                match segment {
+                    Segment::PresentationComposition(pcs) => pcs,
+                    _ => return Err(ReadError::MissingPresentationCompositionSegment),
+                }
+            }
+            None => {
+                return Err(ReadError::NoSegments)
+            }
+        };
 
-        for segment in value.into_iter() {
+        while let Some(segment) = iterator.next() {
 
             if es.is_some() {
                 return Err(ReadError::SegmentAfterEnd)
             }
 
             match segment {
-                Segment::PresentationComposition(this_pcs) => {
-                    if pcs.is_none() {
-                        pcs = Some(this_pcs)
-                    } else {
-                        return Err(ReadError::UnexpectedPresentationCompositionSegment)
-                    }
+                Segment::PresentationComposition(_) => {
+                    return Err(ReadError::UnexpectedPresentationCompositionSegment)
                 }
                 Segment::WindowDefinition(wds) => {
-                    match &pcs {
-                        Some(the_pcs) => {
-                            if wds.pts != the_pcs.pts {
-                                return Err(ReadError::InconsistentPts)
-                            }
-                            if wds.dts != the_pcs.dts {
-                                return Err(ReadError::InconsistentDts)
-                            }
-                            for wd in wds.windows.iter() {
-                                if windows.contains_key(&wd.id) {
-                                    return Err(ReadError::DuplicateWindowId)
-                                }
-                                windows.insert(
-                                    wd.id,
-                                    Window {
-                                        x: wd.x,
-                                        y: wd.y,
-                                        width: wd.width,
-                                        height: wd.height,
-                                    },
-                                );
-                            }
+                    if wds.pts != pcs.pts {
+                        return Err(ReadError::InconsistentPts)
+                    }
+                    if wds.dts != pcs.dts {
+                        return Err(ReadError::InconsistentDts)
+                    }
+                    for wd in wds.windows.iter() {
+                        if windows.contains_key(&wd.id) {
+                            return Err(ReadError::DuplicateWindowId)
                         }
-                        None => {
-                            return Err(ReadError::MissingPresentationCompositionSegment)
-                        }
+                        windows.insert(
+                            wd.id,
+                            Window {
+                                x: wd.x,
+                                y: wd.y,
+                                width: wd.width,
+                                height: wd.height,
+                            },
+                        );
                     }
                 }
                 Segment::PaletteDefinition(pds) => {
-                    match &pcs {
-                        Some(the_pcs) => {
-                            if pds.pts != the_pcs.pts {
-                                return Err(ReadError::InconsistentPts)
-                            }
-                            if pds.dts != the_pcs.dts {
-                                return Err(ReadError::InconsistentDts)
-                            }
-                            let vid = Vid {
-                                id: pds.id,
-                                version: pds.version,
-                            };
-                            if palettes.contains_key(&vid) {
-                                return Err(ReadError::DuplicatePaletteVid)
-                            }
-                            palettes.insert(
-                                vid,
-                                Palette {
-                                    entries: pds.entries.iter().map(|pe|
-                                        (pe.id, PaletteEntry {
-                                            y: pe.y,
-                                            cr: pe.cr,
-                                            cb: pe.cb,
-                                            alpha: pe.alpha,
-                                        })
-                                    ).collect::<BTreeMap<u8, PaletteEntry>>()
-                                },
-                            );
-                        }
-                        None => {
-                            return Err(ReadError::MissingPresentationCompositionSegment)
-                        }
+                    if pds.pts != pcs.pts {
+                        return Err(ReadError::InconsistentPts)
                     }
+                    if pds.dts != pcs.dts {
+                        return Err(ReadError::InconsistentDts)
+                    }
+                    let vid = Vid {
+                        id: pds.id,
+                        version: pds.version,
+                    };
+                    if palettes.contains_key(&vid) {
+                        return Err(ReadError::DuplicatePaletteVid)
+                    }
+                    palettes.insert(
+                        vid,
+                        Palette {
+                            entries: pds.entries.iter().map(|pe|
+                                (pe.id, PaletteEntry {
+                                    y: pe.y,
+                                    cr: pe.cr,
+                                    cb: pe.cb,
+                                    alpha: pe.alpha,
+                                })
+                            ).collect::<BTreeMap<u8, PaletteEntry>>()
+                        },
+                    );
                 }
                 Segment::SingleObjectDefinition(sods) => {
-                    match &pcs {
-                        Some(the_pcs) => {
-                            if sequence == Sequence::Single || sequence == Sequence::Final {
-                                if sods.pts != the_pcs.pts {
-                                    return Err(ReadError::InconsistentPts)
-                                }
-                                if sods.dts != the_pcs.dts {
-                                    return Err(ReadError::InconsistentDts)
-                                }
-                                let vid = Vid {
-                                    id: sods.id,
-                                    version: sods.version,
-                                };
-                                if objects.contains_key(&vid) {
-                                    return Err(ReadError::DuplicateObjectVid)
-                                }
-                                objects.insert(
-                                    vid,
-                                    Object {
-                                        width: sods.width,
-                                        height: sods.height,
-                                        lines: rle_decompress(&sods.data)?,
-                                    },
-                                );
-                                sequence = Sequence::Single;
-                            } else {
-                                return Err(ReadError::InvalidObjectSequence)
-                            }
+                    if sequence == Sequence::Single || sequence == Sequence::Final {
+                        if sods.pts != pcs.pts {
+                            return Err(ReadError::InconsistentPts)
                         }
-                        None => {
-                            return Err(ReadError::MissingPresentationCompositionSegment)
+                        if sods.dts != pcs.dts {
+                            return Err(ReadError::InconsistentDts)
                         }
+                        let vid = Vid {
+                            id: sods.id,
+                            version: sods.version,
+                        };
+                        if objects.contains_key(&vid) {
+                            return Err(ReadError::DuplicateObjectVid)
+                        }
+                        objects.insert(
+                            vid,
+                            Object {
+                                width: sods.width,
+                                height: sods.height,
+                                lines: rle_decompress(&sods.data)?,
+                            },
+                        );
+                        sequence = Sequence::Single;
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
                     }
                 }
                 Segment::InitialObjectDefinition(iods) => {
-                    match &pcs {
-                        Some(the_pcs) => {
-                            if sequence == Sequence::Single || sequence == Sequence::Final {
-                                if iods.pts != the_pcs.pts {
+                    if sequence == Sequence::Single || sequence == Sequence::Final {
+                        if iods.pts != pcs.pts {
+                            return Err(ReadError::InconsistentPts)
+                        }
+                        if iods.dts != pcs.dts {
+                            return Err(ReadError::InconsistentDts)
+                        }
+                        let vid = Vid {
+                            id: iods.id,
+                            version: iods.version,
+                        };
+                        if objects.contains_key(&vid) {
+                            return Err(ReadError::DuplicateObjectVid)
+                        }
+                        initial_object = Some(iods);
+                        sequence = Sequence::Initial;
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
+                    }
+                }
+                Segment::MiddleObjectDefinition(mods) => {
+                    if sequence == Sequence::Initial || sequence == Sequence::Middle {
+                        match &initial_object {
+                            Some(iods) => {
+                                if mods.pts != pcs.pts {
                                     return Err(ReadError::InconsistentPts)
                                 }
-                                if iods.dts != the_pcs.dts {
+                                if mods.dts != pcs.dts {
                                     return Err(ReadError::InconsistentDts)
+                                }
+                                if mods.id != iods.id {
+                                    return Err(ReadError::InconsistentObjectId)
+                                }
+                                if mods.version != iods.version {
+                                    return Err(ReadError::InconsistentObjectVersion)
+                                }
+                                middle_objects.push(mods);
+                                sequence = Sequence::Middle;
+                            }
+                            None => {
+                                panic!("initial_object is not set")
+                            }
+                        }
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
+                    }
+                }
+                Segment::FinalObjectDefinition(mut fods) => {
+                    if sequence == Sequence::Initial || sequence == Sequence::Middle {
+                        match &mut initial_object {
+                            Some(iods) => {
+                                if fods.pts != pcs.pts {
+                                    return Err(ReadError::InconsistentPts)
+                                }
+                                if fods.dts != pcs.dts {
+                                    return Err(ReadError::InconsistentDts)
+                                }
+                                if fods.id != iods.id {
+                                    return Err(ReadError::InconsistentObjectId)
+                                }
+                                if fods.version != iods.version {
+                                    return Err(ReadError::InconsistentObjectVersion)
                                 }
                                 let vid = Vid {
                                     id: iods.id,
                                     version: iods.version,
                                 };
-                                if objects.contains_key(&vid) {
-                                    return Err(ReadError::DuplicateObjectVid)
+                                let mut data = Vec::new();
+                                data.append(&mut iods.data);
+                                for mods in middle_objects.iter_mut() {
+                                    data.append(&mut mods.data);
                                 }
-                                initial_object = Some(iods);
-                                sequence = Sequence::Initial;
-                            } else {
-                                return Err(ReadError::InvalidObjectSequence)
+                                data.append(&mut fods.data);
+                                objects.insert(
+                                    vid,
+                                    Object {
+                                        width: iods.width,
+                                        height: iods.height,
+                                        lines: rle_decompress(&data)?,
+                                    },
+                                );
+                                initial_object = None;
+                                middle_objects.clear();
+                                sequence = Sequence::Final;
+                            }
+                            None => {
+                                panic!("initial_object is not set")
                             }
                         }
-                        None => {
-                            return Err(ReadError::MissingPresentationCompositionSegment)
-                        }
-                    }
-                }
-                Segment::MiddleObjectDefinition(mods) => {
-                    match &pcs {
-                        Some(the_pcs) => {
-                            if sequence == Sequence::Initial || sequence == Sequence::Middle {
-                                match &initial_object {
-                                    Some(iods) => {
-                                        if mods.pts != the_pcs.pts {
-                                            return Err(ReadError::InconsistentPts)
-                                        }
-                                        if mods.dts != the_pcs.dts {
-                                            return Err(ReadError::InconsistentDts)
-                                        }
-                                        if mods.id != iods.id {
-                                            return Err(ReadError::InconsistentObjectId)
-                                        }
-                                        if mods.version != iods.version {
-                                            return Err(ReadError::InconsistentObjectVersion)
-                                        }
-                                        middle_objects.push(mods);
-                                        sequence = Sequence::Middle;
-                                    }
-                                    None => {
-                                        panic!("initial_object is not set")
-                                    }
-                                }
-                            } else {
-                                return Err(ReadError::InvalidObjectSequence)
-                            }
-                        }
-                        None => {
-                            return Err(ReadError::MissingPresentationCompositionSegment)
-                        }
-                    }
-                }
-                Segment::FinalObjectDefinition(mut fods) => {
-                    match &pcs {
-                        Some(the_pcs) => {
-                            if sequence == Sequence::Initial || sequence == Sequence::Middle {
-                                match &mut initial_object {
-                                    Some(iods) => {
-                                        if fods.pts != the_pcs.pts {
-                                            return Err(ReadError::InconsistentPts)
-                                        }
-                                        if fods.dts != the_pcs.dts {
-                                            return Err(ReadError::InconsistentDts)
-                                        }
-                                        if fods.id != iods.id {
-                                            return Err(ReadError::InconsistentObjectId)
-                                        }
-                                        if fods.version != iods.version {
-                                            return Err(ReadError::InconsistentObjectVersion)
-                                        }
-                                        let vid = Vid {
-                                            id: iods.id,
-                                            version: iods.version,
-                                        };
-                                        let mut data = Vec::new();
-                                        data.append(&mut iods.data);
-                                        for mods in middle_objects.iter_mut() {
-                                            data.append(&mut mods.data);
-                                        }
-                                        data.append(&mut fods.data);
-                                        objects.insert(
-                                            vid,
-                                            Object {
-                                                width: iods.width,
-                                                height: iods.height,
-                                                lines: rle_decompress(&data)?,
-                                            },
-                                        );
-                                        initial_object = None;
-                                        middle_objects.clear();
-                                        sequence = Sequence::Final;
-                                    }
-                                    None => {
-                                        panic!("initial_object is not set")
-                                    }
-                                }
-                            } else {
-                                return Err(ReadError::InvalidObjectSequence)
-                            }
-                        }
-                        None => {
-                            return Err(ReadError::MissingPresentationCompositionSegment)
-                        }
+                    } else {
+                        return Err(ReadError::InvalidObjectSequence)
                     }
                 }
                 Segment::End(this_es) => {
-                    match &pcs {
-                        Some(the_pcs) => {
-                            if sequence != Sequence::Single && sequence != Sequence::Final {
-                                return Err(ReadError::IncompleteObjectSequence)
-                            }
-                            if this_es.pts != the_pcs.pts {
-                                return Err(ReadError::InconsistentPts)
-                            }
-                            if this_es.dts != the_pcs.dts {
-                                return Err(ReadError::InconsistentDts)
-                            }
-                            es = Some(this_es);
-                        }
-                        None => {
-                            return Err(ReadError::MissingPresentationCompositionSegment)
-                        }
+                    if sequence != Sequence::Single && sequence != Sequence::Final {
+                        return Err(ReadError::IncompleteObjectSequence)
                     }
+                    if this_es.pts != pcs.pts {
+                        return Err(ReadError::InconsistentPts)
+                    }
+                    if this_es.dts != pcs.dts {
+                        return Err(ReadError::InconsistentDts)
+                    }
+                    es = Some(this_es);
                 }
             }
         }
 
-        let the_pcs = pcs.expect("PCS is not set, somehow");
+        if es.is_none() {
+            return Err(ReadError::MissingEndSegment)
+        }
 
-        for co in the_pcs.composition_objects.iter() {
+        for co in pcs.composition_objects.iter() {
             // TODO: Maybe re-enable.
             // if !objects.keys().any(|vid| vid.id == co.object_id) {
             //     return Err(ReadError::CompositionReferencesUnknownObjectId)
@@ -443,12 +409,12 @@ impl DisplaySet {
         }
 
         let composition = Composition {
-            number: the_pcs.composition_number,
-            state: the_pcs.composition_state,
+            number: pcs.composition_number,
+            state: pcs.composition_state,
             objects: composition_objects,
         };
 
-        match the_pcs.palette_update_id {
+        match pcs.palette_update_id {
             Some(palette_update_id) => {
                 if !palettes.keys().any(|vid| vid.id == palette_update_id) {
                     return Err(ReadError::PaletteUpdateReferencesUnknownPaletteId)
@@ -460,12 +426,12 @@ impl DisplaySet {
 
         Ok(
             DisplaySet {
-                pts: the_pcs.pts,
-                dts: the_pcs.dts,
-                width: the_pcs.width,
-                height: the_pcs.height,
-                frame_rate: the_pcs.frame_rate,
-                palette_update_id: the_pcs.palette_update_id,
+                pts: pcs.pts,
+                dts: pcs.dts,
+                width: pcs.width,
+                height: pcs.height,
+                frame_rate: pcs.frame_rate,
+                palette_update_id: pcs.palette_update_id,
                 windows,
                 palettes,
                 objects,
