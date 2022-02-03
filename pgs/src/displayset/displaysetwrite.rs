@@ -58,7 +58,7 @@ impl<T> WriteDisplaySetExt for T where
 
     fn write_display_set(&mut self, display_set: DisplaySet) -> WriteResult<()> {
 
-        let segments = Vec::<Segment>::try_from(display_set)?;
+        let segments = display_set.into_segments()?;
 
         for segment in segments.into_iter() {
             self.write_segment(&segment)?;
@@ -68,25 +68,23 @@ impl<T> WriteDisplaySetExt for T where
     }
 }
 
-impl TryFrom<DisplaySet> for Vec<Segment> {
+impl DisplaySet {
 
-    type Error = WriteError;
-
-    fn try_from(value: DisplaySet) -> Result<Self, Self::Error> {
+    fn into_segments(self) -> WriteResult<Vec<Segment>> {
 
         let mut segments = Vec::<Segment>::new();
 
         segments.push(Segment::PresentationComposition(
             PresentationCompositionSegment {
-                pts: value.pts,
-                dts: value.dts,
-                width: value.width,
-                height: value.height,
-                frame_rate: value.frame_rate,
-                composition_number: value.composition.number,
-                composition_state: value.composition.state,
-                palette_update_id: value.palette_update_id,
-                composition_objects: value.composition.objects.iter().map(|(cid, co)|
+                pts: self.pts,
+                dts: self.dts,
+                width: self.width,
+                height: self.height,
+                frame_rate: self.frame_rate,
+                composition_number: self.composition.number,
+                composition_state: self.composition.state,
+                palette_update_id: self.palette_update_id,
+                composition_objects: self.composition.objects.iter().map(|(cid, co)|
                     CompositionObject {
                         object_id: cid.object_id,
                         window_id: cid.window_id,
@@ -98,12 +96,12 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
             }
         ));
 
-        if !value.windows.is_empty() {
+        if !self.windows.is_empty() {
             segments.push(Segment::WindowDefinition(
                 WindowDefinitionSegment {
-                    pts: value.pts,
-                    dts: value.dts,
-                    windows: value.windows.iter().map(|(&window_id, window)|
+                    pts: self.pts,
+                    dts: self.dts,
+                    windows: self.windows.iter().map(|(&window_id, window)|
                         WindowDefinition {
                             id: window_id,
                             x: window.x,
@@ -116,11 +114,11 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
             ));
         }
 
-        for (vid, palette) in value.palettes.iter() {
+        for (vid, palette) in self.palettes.iter() {
             segments.push(Segment::PaletteDefinition(
                 PaletteDefinitionSegment {
-                    pts: value.pts,
-                    dts: value.dts,
+                    pts: self.pts,
+                    dts: self.dts,
                     id: vid.id,
                     version: vid.version,
                     entries: palette.entries.iter().map(|(&id, entry)|
@@ -136,7 +134,7 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
             ));
         }
 
-        for (vid, object) in value.objects.iter() {
+        for (vid, object) in self.objects.iter() {
 
             let data = rle_compress(&object.lines)?;
             let mut index = 0;
@@ -145,8 +143,8 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
             if size > IODS_DATA_SIZE {
                 segments.push(Segment::InitialObjectDefinition(
                     InitialObjectDefinitionSegment {
-                        pts: value.pts,
-                        dts: value.dts,
+                        pts: self.pts,
+                        dts: self.dts,
                         id: vid.id,
                         version: vid.version,
                         width: object.width,
@@ -160,8 +158,8 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
                 while size > MODS_DATA_SIZE {
                     segments.push(Segment::MiddleObjectDefinition(
                         MiddleObjectDefinitionSegment {
-                            pts: value.pts,
-                            dts: value.dts,
+                            pts: self.pts,
+                            dts: self.dts,
                             id: vid.id,
                             version: vid.version,
                             data: Vec::from(&data[index..(index + MODS_DATA_SIZE)]),
@@ -172,8 +170,8 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
                 }
                 segments.push(Segment::FinalObjectDefinition(
                     FinalObjectDefinitionSegment {
-                        pts: value.pts,
-                        dts: value.dts,
+                        pts: self.pts,
+                        dts: self.dts,
                         id: vid.id,
                         version: vid.version,
                         data: Vec::from(&data[index..]),
@@ -182,8 +180,8 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
             } else {
                 segments.push(Segment::SingleObjectDefinition(
                     SingleObjectDefinitionSegment {
-                        pts: value.pts,
-                        dts: value.dts,
+                        pts: self.pts,
+                        dts: self.dts,
                         id: vid.id,
                         version: vid.version,
                         width: object.width,
@@ -196,8 +194,8 @@ impl TryFrom<DisplaySet> for Vec<Segment> {
 
         segments.push(Segment::End(
             EndSegment {
-                pts: value.pts,
-                dts: value.dts,
+                pts: self.pts,
+                dts: self.dts,
             }
         ));
 

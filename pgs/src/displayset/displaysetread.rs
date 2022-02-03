@@ -149,15 +149,15 @@ impl<T> ReadDisplaySetExt for T where
             }
         }
 
-        DisplaySet::try_from(&mut segments[..])
+        DisplaySet::from_segments(segments)
     }
 }
 
-impl TryFrom<&mut [Segment]> for DisplaySet {
+impl DisplaySet {
 
-    type Error = ReadError;
-
-    fn try_from(value: &mut [Segment]) -> Result<Self, Self::Error> {
+    pub fn from_segments<T>(value: T) -> ReadResult<Self> where
+        T: IntoIterator<Item = Segment>
+    {
 
         let mut pcs = None;
         let mut es = None;
@@ -169,7 +169,7 @@ impl TryFrom<&mut [Segment]> for DisplaySet {
         let mut objects = BTreeMap::<Vid<u16>, Object>::new();
         let mut composition_objects = BTreeMap::<Cid, CompositionObject>::new();
 
-        for segment in value.iter_mut() {
+        for segment in value.into_iter() {
 
             if es.is_some() {
                 return Err(ReadError::SegmentAfterEnd)
@@ -344,7 +344,7 @@ impl TryFrom<&mut [Segment]> for DisplaySet {
                         }
                     }
                 }
-                Segment::FinalObjectDefinition(fods) => {
+                Segment::FinalObjectDefinition(mut fods) => {
                     match &pcs {
                         Some(the_pcs) => {
                             if sequence == Sequence::Initial || sequence == Sequence::Middle {

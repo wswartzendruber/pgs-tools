@@ -41,7 +41,7 @@ fn test_ds_cycle_empty() {
         },
     };
 
-    buffer.write_display_set(&display_set).unwrap();
+    buffer.write_display_set(display_set.clone()).unwrap();
 
     let mut cursor = Cursor::new(buffer);
     let cycled_display_set = cursor.read_display_set().unwrap();
@@ -305,7 +305,7 @@ fn test_ds_cycle_not_empty() {
         },
     };
 
-    buffer.write_display_set(&display_set).unwrap();
+    buffer.write_display_set(display_set.clone()).unwrap();
 
     let mut cursor = Cursor::new(buffer);
     let cycled_display_set = cursor.read_display_set().unwrap();
