@@ -68,6 +68,7 @@ fn test_pcs_cycle_no_pui_co() {
                             y: rng.gen(),
                             width: rng.gen(),
                             height: rng.gen(),
+                            value: rng.gen(),
                         }
                     ),
                 },
@@ -132,6 +133,7 @@ fn test_pcs_cycle_pui_co() {
                             y: rng.gen(),
                             width: rng.gen(),
                             height: rng.gen(),
+                            value: rng.gen(),
                         }
                     ),
                 },

@@ -165,23 +165,15 @@ fn generate_pcs(pcs: &PresentationCompositionSegment) -> WriteResult<Vec<u8>> {
 
         payload.write_u16::<BigEndian>(comp_obj.object_id)?;
         payload.write_u8(comp_obj.window_id)?;
+        payload.write_u8(match &comp_obj.crop {
+            Some(x) => x.value,
+            None => 0x00,
+        })?;
 
-        let cropped = comp_obj.crop.is_some();
-
-        payload.write_u8(
-            if cropped {
-                0x80
-            } else {
-                0x00
-            }
-        )?;
         payload.write_u16::<BigEndian>(comp_obj.x)?;
         payload.write_u16::<BigEndian>(comp_obj.y)?;
 
-        if cropped {
-
-            let crop = comp_obj.crop.as_ref().unwrap();
-
+        if let Some(crop) = &comp_obj.crop {
             payload.write_u16::<BigEndian>(crop.x)?;
             payload.write_u16::<BigEndian>(crop.y)?;
             payload.write_u16::<BigEndian>(crop.width)?;

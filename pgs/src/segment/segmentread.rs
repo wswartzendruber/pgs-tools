@@ -82,15 +82,6 @@ pub enum ReadError {
         /// The palette update flag that was parsed.
         parsed_palette_update_flag: u8,
     },
-    /// The bitstream declares an invalid crop flag within a composition object within a
-    /// presentation composition segment (PCS). The valid flags are:
-    /// - `0x00` (no object cropping is being performed for this composition)
-    /// - `0x80` (object cropping is being performed for this composition)
-    #[error("composition object has unrecognized cropped flag")]
-    UnrecognizedCropFlag {
-        /// The crop flag that was parsed.
-        parsed_crop_flag: u8,
-    },
     /// The bitstream declares an unrecognized sequence flag within an object definition segment
     /// (ODS). The valid flags are:
     /// - `0xC0` (declares a single, complete object)
@@ -234,12 +225,7 @@ fn parse_pcs(
 
             let object_id = input.read_u16::<BigEndian>()?;
             let window_id = input.read_u8()?;
-            let parsed_crop_flag = input.read_u8()?;
-            let cropped = match parsed_crop_flag {
-                0x80 => true,
-                0x00 => false,
-                _ => return Err(ReadError::UnrecognizedCropFlag { parsed_crop_flag }),
-            };
+            let crop_value = input.read_u8()?;
             let x = input.read_u16::<BigEndian>()?;
             let y = input.read_u16::<BigEndian>()?;
 
@@ -247,7 +233,7 @@ fn parse_pcs(
 
             // For some reason, the U.S. release of Final Fantasy VII: Advent Children Complete
             // declares that the object is cropped, but then the segment's payload ends.
-            let crop = if cropped && payload.len() - pos >= 8 {
+            let crop = if crop_value != 0 && payload.len() - pos >= 8 {
                 pos += 8;
                 Some(
                     Crop {
@@ -255,6 +241,7 @@ fn parse_pcs(
                         y: input.read_u16::<BigEndian>()?,
                         width: input.read_u16::<BigEndian>()?,
                         height: input.read_u16::<BigEndian>()?,
+                        value: crop_value,
                     }
                 )
             } else {
