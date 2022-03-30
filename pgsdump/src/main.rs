@@ -84,6 +84,7 @@ fn main() {
                             println!("    object_vertical_position = {}", comp_obj.y);
                             match &comp_obj.crop {
                                 Some(crop) => {
+                                    println!("object_cropping_value = {}", crop.value);
                                     println!(
                                         "    object_cropping_horizontal_position = {}",
                                         crop.x,
