@@ -181,7 +181,7 @@ pub struct Crop {
     /// The height of the area.
     pub height: u16,
     /// The value of the cropping flag in the bitstream; `0x80` is typically used.
-    pub value: u8,
+    pub flag: u8,
 }
 
 /// Defines a Window Definition Segment (WDS).

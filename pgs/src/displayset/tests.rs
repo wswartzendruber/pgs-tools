@@ -84,7 +84,7 @@ fn test_ds_cycle_not_empty() {
                 y: rng.gen(),
                 width: rng.gen(),
                 height: rng.gen(),
-                value: rng.gen(),
+                flag: rng.gen(),
             }),
         },
     );
@@ -101,7 +101,7 @@ fn test_ds_cycle_not_empty() {
                 y: rng.gen(),
                 width: rng.gen(),
                 height: rng.gen(),
-                value: rng.gen(),
+                flag: rng.gen(),
             }),
         },
     );

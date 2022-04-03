@@ -166,7 +166,7 @@ fn generate_pcs(pcs: &PresentationCompositionSegment) -> WriteResult<Vec<u8>> {
         payload.write_u16::<BigEndian>(comp_obj.object_id)?;
         payload.write_u8(comp_obj.window_id)?;
         payload.write_u8(match &comp_obj.crop {
-            Some(x) => x.value,
+            Some(x) => x.flag,
             None => 0x00,
         })?;
 

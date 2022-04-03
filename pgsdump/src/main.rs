@@ -84,7 +84,7 @@ fn main() {
                             println!("    object_vertical_position = {}", comp_obj.y);
                             match &comp_obj.crop {
                                 Some(crop) => {
-                                    println!("object_cropping_value = {}", crop.value);
+                                    println!("object_cropping_flag = {}", crop.flag);
                                     println!(
                                         "    object_cropping_horizontal_position = {}",
                                         crop.x,
@@ -155,6 +155,9 @@ fn main() {
             Err(err) => {
                 match err {
                     ReadError::IoError { source } => {
+                        if source.kind() == ErrorKind::UnexpectedEof {
+                            println!("EOF ENCOUNTERED.")
+                        }
                         if source.kind() != ErrorKind::UnexpectedEof {
                             panic!("Could not read segment due to IO error: {}", source)
                         }
