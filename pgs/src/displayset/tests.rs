@@ -68,7 +68,8 @@ fn test_ds_cycle_not_empty() {
         CompositionObject {
             x: rng.gen(),
             y: rng.gen(),
-            crop: Crop::None,
+            forced: false,
+            crop: None,
         },
     );
     composition_objects.insert(
@@ -79,7 +80,13 @@ fn test_ds_cycle_not_empty() {
         CompositionObject {
             x: rng.gen(),
             y: rng.gen(),
-            crop: Crop::Implicit,
+            forced: false,
+            crop: Some(Crop {
+                x: rng.gen(),
+                y: rng.gen(),
+                width: rng.gen(),
+                height: rng.gen(),
+            }),
         },
     );
     composition_objects.insert(
@@ -90,12 +97,13 @@ fn test_ds_cycle_not_empty() {
         CompositionObject {
             x: rng.gen(),
             y: rng.gen(),
-            crop: Crop::Explicit {
+            forced: true,
+            crop: Some(Crop {
                 x: rng.gen(),
                 y: rng.gen(),
                 width: rng.gen(),
                 height: rng.gen(),
-            },
+            }),
         },
     );
 

@@ -82,16 +82,6 @@ pub enum ReadError {
         /// The palette update flag that was parsed.
         parsed_palette_update_flag: u8,
     },
-    /// The bitstream declares an invalid crop flag within a composition object within a
-    /// presentation composition segment (PCS). The valid flags are:
-    /// - `0x00` (no object cropping is being performed for this composition)
-    /// - `0x40` (implicit object cropping with no defined dimensions is being performed)
-    /// - `0x80` (explicit object cropping with defined dimensions is being performed)
-    #[error("composition object has unrecognized cropped flag")]
-    UnrecognizedCropFlag {
-        /// The crop flag that was parsed.
-        parsed_crop_flag: u8,
-    },
     /// The bitstream declares an unrecognized sequence flag within an object definition segment
     /// (ODS). The valid flags are:
     /// - `0xC0` (declares a single, complete object)
@@ -232,27 +222,21 @@ fn parse_pcs(
 
         let object_id = input.read_u16::<BigEndian>()?;
         let window_id = input.read_u8()?;
-        let crop_flag = input.read_u8()?;
+        let flags = input.read_u8()?;
         let x = input.read_u16::<BigEndian>()?;
         let y = input.read_u16::<BigEndian>()?;
-        let crop = match crop_flag {
-            0x00 => {
-                Crop::None
-            }
-            0x40 => {
-                Crop::Implicit
-            }
-            0x80 => {
-                Crop::Explicit {
+        let forced = flags & 0x40 != 0;
+        let crop = if flags & 0x80 != 0 {
+            Some(
+                Crop {
                     x: input.read_u16::<BigEndian>()?,
                     y: input.read_u16::<BigEndian>()?,
                     width: input.read_u16::<BigEndian>()?,
                     height: input.read_u16::<BigEndian>()?,
                 }
-            }
-            x => {
-                return Err(ReadError::UnrecognizedCropFlag { parsed_crop_flag: x })
-            }
+            )
+        } else {
+            None
         };
 
         composition_objects.push(
@@ -261,6 +245,7 @@ fn parse_pcs(
                 window_id,
                 x,
                 y,
+                forced,
                 crop,
             }
         );

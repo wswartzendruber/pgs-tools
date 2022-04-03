@@ -10,7 +10,6 @@
 
 use super::{
     CompositionState,
-    Crop,
     FinalObjectDefinitionSegment,
     InitialObjectDefinitionSegment,
     MiddleObjectDefinitionSegment,
@@ -166,19 +165,19 @@ fn generate_pcs(pcs: &PresentationCompositionSegment) -> WriteResult<Vec<u8>> {
 
         payload.write_u16::<BigEndian>(comp_obj.object_id)?;
         payload.write_u8(comp_obj.window_id)?;
-        payload.write_u8(match &comp_obj.crop {
-            Crop::None => 0x00,
-            Crop::Implicit => 0x40,
-            Crop::Explicit { x: _, y: _, width: _, height: _ } => 0x80,
-        })?;
+        payload.write_u8(
+            if comp_obj.crop.is_some() { 0x80 } else { 0x00 }
+            |
+            if comp_obj.forced { 0x40 } else { 0x00 }
+        )?;
         payload.write_u16::<BigEndian>(comp_obj.x)?;
         payload.write_u16::<BigEndian>(comp_obj.y)?;
 
-        if let Crop::Explicit { x, y, width, height } = &comp_obj.crop {
-            payload.write_u16::<BigEndian>(*x)?;
-            payload.write_u16::<BigEndian>(*y)?;
-            payload.write_u16::<BigEndian>(*width)?;
-            payload.write_u16::<BigEndian>(*height)?;
+        if let Some(crop) = &comp_obj.crop {
+            payload.write_u16::<BigEndian>(crop.x)?;
+            payload.write_u16::<BigEndian>(crop.y)?;
+            payload.write_u16::<BigEndian>(crop.width)?;
+            payload.write_u16::<BigEndian>(crop.height)?;
         }
     }
 

@@ -3,7 +3,7 @@
  * copy of the MPL was not distributed with this file, You can obtain one at
  * https://mozilla.org/MPL/2.0/.
  *
- * Copyright 2021 William Swartzendruber
+ * Copyright 2022 William Swartzendruber
  *
  * SPDX-License-Identifier: MPL-2.0
  */
@@ -90,6 +90,7 @@ impl DisplaySet {
                         window_id: cid.window_id,
                         x: co.x,
                         y: co.y,
+                        forced: co.forced,
                         crop: co.crop.clone(),
                     }
                 ).collect::<Vec<CompositionObject>>(),

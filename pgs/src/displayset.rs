@@ -103,8 +103,11 @@ pub struct CompositionObject {
     /// The vertical offset of the object’s top-left corner relative to the top-left corner of
     /// the screen. If the object is cropped, then this applies only to the visible area.
     pub y: u16,
+    /// Whether or not the composition object is forced. This is typically used to translate
+    /// foreign dialogue or text that appears.
+    pub forced: bool,
     /// If set, defines the visible area of the object. Otherwise, the entire object is shown.
-    pub crop: Crop,
+    pub crop: Option<Crop>,
 }
 
 /// Defines a window within a display set.

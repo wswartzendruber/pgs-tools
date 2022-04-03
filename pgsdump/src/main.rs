@@ -12,7 +12,6 @@ use pgs::{
     ts_to_timestamp,
     segment::{
         CompositionState,
-        Crop,
         ReadSegmentExt,
         Segment,
         ReadError,
@@ -81,20 +80,19 @@ fn main() {
                             println!("  window_information");
                             println!("    object_id = {}", comp_obj.object_id);
                             println!("    window_id = {}", comp_obj.window_id);
-                            println!("    object_horizontal_position = {}", comp_obj.x);
-                            println!("    object_vertical_position = {}", comp_obj.y);
+                            println!("    forced = {}", comp_obj.forced);
+                            println!("    x = {}", comp_obj.x);
+                            println!("    y = {}", comp_obj.y);
                             match &comp_obj.crop {
-                                Crop::None => {
-                                    println!("    object_cropping = NONE");
+                                Some(crop) => {
+                                    println!("  cropped = {}", true);
+                                    println!("    cropped_x = {}", crop.x);
+                                    println!("    cropped_y = {}", crop.y);
+                                    println!("    cropped_width = {}", crop.width);
+                                    println!("    cropped_height = {}", crop.height);
                                 }
-                                Crop::Implicit => {
-                                    println!("    object_cropping = IMPLICIT");
-                                }
-                                Crop::Explicit { x, y, width, height } => {
-                                    println!("        x = {}", x);
-                                    println!("        y = {}", y);
-                                    println!("        width = {}", width);
-                                    println!("        height = {}", height);
+                                None => {
+                                    println!("  cropped = {}", false);
                                 }
                             }
                         }
