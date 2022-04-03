@@ -104,7 +104,7 @@ pub struct CompositionObject {
     /// the screen. If the object is cropped, then this applies only to the visible area.
     pub y: u16,
     /// If set, defines the visible area of the object. Otherwise, the entire object is shown.
-    pub crop: Option<Crop>,
+    pub crop: Crop,
 }
 
 /// Defines a window within a display set.

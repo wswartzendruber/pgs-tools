@@ -1,7 +1,7 @@
 /*
  * Any copyright is dedicated to the Public Domain.
  *
- * Copyright 2021 William Swartzendruber
+ * Copyright 2022 William Swartzendruber
  *
  * SPDX-License-Identifier: CC0-1.0
  */
@@ -68,7 +68,7 @@ fn test_ds_cycle_not_empty() {
         CompositionObject {
             x: rng.gen(),
             y: rng.gen(),
-            crop: None,
+            crop: Crop::None,
         },
     );
     composition_objects.insert(
@@ -79,13 +79,7 @@ fn test_ds_cycle_not_empty() {
         CompositionObject {
             x: rng.gen(),
             y: rng.gen(),
-            crop: Some(Crop {
-                x: rng.gen(),
-                y: rng.gen(),
-                width: rng.gen(),
-                height: rng.gen(),
-                flag: rng.gen(),
-            }),
+            crop: Crop::Implicit,
         },
     );
     composition_objects.insert(
@@ -96,13 +90,12 @@ fn test_ds_cycle_not_empty() {
         CompositionObject {
             x: rng.gen(),
             y: rng.gen(),
-            crop: Some(Crop {
+            crop: Crop::Explicit {
                 x: rng.gen(),
                 y: rng.gen(),
                 width: rng.gen(),
                 height: rng.gen(),
-                flag: rng.gen(),
-            }),
+            },
         },
     );
 

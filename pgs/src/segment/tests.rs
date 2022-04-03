@@ -55,22 +55,26 @@ fn test_pcs_cycle_no_pui_co() {
                     window_id: rng.gen(),
                     x: rng.gen(),
                     y: rng.gen(),
-                    crop: None,
+                    crop: Crop::None,
                 },
                 CompositionObject {
                     object_id: rng.gen(),
                     window_id: rng.gen(),
                     x: rng.gen(),
                     y: rng.gen(),
-                    crop: Some(
-                        Crop {
-                            x: rng.gen(),
-                            y: rng.gen(),
-                            width: rng.gen(),
-                            height: rng.gen(),
-                            flag: rng.gen(),
-                        }
-                    ),
+                    crop: Crop::Implicit,
+                },
+                CompositionObject {
+                    object_id: rng.gen(),
+                    window_id: rng.gen(),
+                    x: rng.gen(),
+                    y: rng.gen(),
+                    crop: Crop::Explicit {
+                        x: rng.gen(),
+                        y: rng.gen(),
+                        width: rng.gen(),
+                        height: rng.gen(),
+                    },
                 },
             ],
         }
@@ -120,22 +124,19 @@ fn test_pcs_cycle_pui_co() {
                     window_id: rng.gen(),
                     x: rng.gen(),
                     y: rng.gen(),
-                    crop: None,
+                    crop: Crop::None,
                 },
                 CompositionObject {
                     object_id: rng.gen(),
                     window_id: rng.gen(),
                     x: rng.gen(),
                     y: rng.gen(),
-                    crop: Some(
-                        Crop {
-                            x: rng.gen(),
-                            y: rng.gen(),
-                            width: rng.gen(),
-                            height: rng.gen(),
-                            flag: rng.gen(),
-                        }
-                    ),
+                    crop: Crop::Explicit {
+                        x: rng.gen(),
+                        y: rng.gen(),
+                        width: rng.gen(),
+                        height: rng.gen(),
+                    },
                 },
             ],
         }

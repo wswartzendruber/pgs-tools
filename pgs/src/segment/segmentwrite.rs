@@ -3,13 +3,14 @@
  * copy of the MPL was not distributed with this file, You can obtain one at
  * https://mozilla.org/MPL/2.0/.
  *
- * Copyright 2021 William Swartzendruber
+ * Copyright 2022 William Swartzendruber
  *
  * SPDX-License-Identifier: MPL-2.0
  */
 
 use super::{
     CompositionState,
+    Crop,
     FinalObjectDefinitionSegment,
     InitialObjectDefinitionSegment,
     MiddleObjectDefinitionSegment,
@@ -166,18 +167,18 @@ fn generate_pcs(pcs: &PresentationCompositionSegment) -> WriteResult<Vec<u8>> {
         payload.write_u16::<BigEndian>(comp_obj.object_id)?;
         payload.write_u8(comp_obj.window_id)?;
         payload.write_u8(match &comp_obj.crop {
-            Some(x) => x.flag,
-            None => 0x00,
+            Crop::None => 0x00,
+            Crop::Implicit => 0x40,
+            Crop::Explicit { x: _, y: _, width: _, height: _ } => 0x80,
         })?;
-
         payload.write_u16::<BigEndian>(comp_obj.x)?;
         payload.write_u16::<BigEndian>(comp_obj.y)?;
 
-        if let Some(crop) = &comp_obj.crop {
-            payload.write_u16::<BigEndian>(crop.x)?;
-            payload.write_u16::<BigEndian>(crop.y)?;
-            payload.write_u16::<BigEndian>(crop.width)?;
-            payload.write_u16::<BigEndian>(crop.height)?;
+        if let Crop::Explicit { x, y, width, height } = &comp_obj.crop {
+            payload.write_u16::<BigEndian>(*x)?;
+            payload.write_u16::<BigEndian>(*y)?;
+            payload.write_u16::<BigEndian>(*width)?;
+            payload.write_u16::<BigEndian>(*height)?;
         }
     }
 

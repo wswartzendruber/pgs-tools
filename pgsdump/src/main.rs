@@ -12,6 +12,7 @@ use pgs::{
     ts_to_timestamp,
     segment::{
         CompositionState,
+        Crop,
         ReadSegmentExt,
         Segment,
         ReadError,
@@ -83,20 +84,18 @@ fn main() {
                             println!("    object_horizontal_position = {}", comp_obj.x);
                             println!("    object_vertical_position = {}", comp_obj.y);
                             match &comp_obj.crop {
-                                Some(crop) => {
-                                    println!("object_cropping_flag = {}", crop.flag);
-                                    println!(
-                                        "    object_cropping_horizontal_position = {}",
-                                        crop.x,
-                                    );
-                                    println!(
-                                        "    object_cropping_vertical_position = {}",
-                                        crop.y,
-                                    );
-                                    println!("    object_cropping_width = {}", crop.width);
-                                    println!("    object_crooping_height = {}", crop.height);
+                                Crop::None => {
+                                    println!("    object_cropping = NONE");
                                 }
-                                None => { }
+                                Crop::Implicit => {
+                                    println!("    object_cropping = IMPLICIT");
+                                }
+                                Crop::Explicit { x, y, width, height } => {
+                                    println!("        x = {}", x);
+                                    println!("        y = {}", y);
+                                    println!("        width = {}", width);
+                                    println!("        height = {}", height);
+                                }
                             }
                         }
                     }

@@ -3,7 +3,7 @@
  * copy of the MPL was not distributed with this file, You can obtain one at
  * https://mozilla.org/MPL/2.0/.
  *
- * Copyright 2021 William Swartzendruber
+ * Copyright 2022 William Swartzendruber
  *
  * SPDX-License-Identifier: MPL-2.0
  */
@@ -120,6 +120,32 @@ impl Default for CompositionState {
     fn default() -> Self { Self::EpochStart }
 }
 
+/// Defines the type of cropping used within a presentation composition segment (PCS).
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum Crop {
+    /// No cropping is declared.
+    None,
+    /// Cropping is declared, but no dimensions are defined.
+    Implicit,
+    /// Cropping is declared along with defined dimensions.
+    Explicit {
+        /// The horizontal offset of the area's top-left corner relative to the top-left corner
+        /// of the object itself.
+        x: u16,
+        /// The vertical offset of the area's top-left corner relative to the top-left corner of
+        /// the object itself.
+        y: u16,
+        /// The width of the area.
+        width: u16,
+        /// The height of the area.
+        height: u16,
+    },
+}
+
+impl Default for Crop {
+    fn default() -> Self { Self::None }
+}
+
 /// Defines a Presentation Composition Segment (PCS).
 ///
 /// A PCS marks the beginning of a display set (DS).
@@ -164,24 +190,7 @@ pub struct CompositionObject {
     /// the screen. If the object is cropped, then this applies only to the visible area.
     pub y: u16,
     /// If set, defines the visible area of the object. Otherwise, the entire object is shown.
-    pub crop: Option<Crop>,
-}
-
-/// Defines the specific area within an object to be shown.
-#[derive(Clone, Debug, Default, Hash, PartialEq)]
-pub struct Crop {
-    /// The horizontal offset of the area's top-left corner relative to the top-left corner of
-    /// the object itself.
-    pub x: u16,
-    /// The vertical offset of the area's top-left corner relative to the top-left corner of the
-    /// object itself.
-    pub y: u16,
-    /// The width of the area.
-    pub width: u16,
-    /// The height of the area.
-    pub height: u16,
-    /// The value of the cropping flag in the bitstream; `0x80` is typically used.
-    pub flag: u8,
+    pub crop: Crop,
 }
 
 /// Defines a Window Definition Segment (WDS).

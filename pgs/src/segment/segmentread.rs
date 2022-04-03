@@ -3,7 +3,7 @@
  * copy of the MPL was not distributed with this file, You can obtain one at
  * https://mozilla.org/MPL/2.0/.
  *
- * Copyright 2021 William Swartzendruber
+ * Copyright 2022 William Swartzendruber
  *
  * SPDX-License-Identifier: MPL-2.0
  */
@@ -81,6 +81,16 @@ pub enum ReadError {
     UnrecognizedPaletteUpdateFlag {
         /// The palette update flag that was parsed.
         parsed_palette_update_flag: u8,
+    },
+    /// The bitstream declares an invalid crop flag within a composition object within a
+    /// presentation composition segment (PCS). The valid flags are:
+    /// - `0x00` (no object cropping is being performed for this composition)
+    /// - `0x40` (implicit object cropping with no defined dimensions is being performed)
+    /// - `0x80` (explicit object cropping with defined dimensions is being performed)
+    #[error("composition object has unrecognized cropped flag")]
+    UnrecognizedCropFlag {
+        /// The crop flag that was parsed.
+        parsed_crop_flag: u8,
     },
     /// The bitstream declares an unrecognized sequence flag within an object definition segment
     /// (ODS). The valid flags are:
@@ -225,18 +235,24 @@ fn parse_pcs(
         let crop_flag = input.read_u8()?;
         let x = input.read_u16::<BigEndian>()?;
         let y = input.read_u16::<BigEndian>()?;
-        let crop = if crop_flag != 0 {
-            Some(
-                Crop {
+        let crop = match crop_flag {
+            0x00 => {
+                Crop::None
+            }
+            0x40 => {
+                Crop::Implicit
+            }
+            0x80 => {
+                Crop::Explicit {
                     x: input.read_u16::<BigEndian>()?,
                     y: input.read_u16::<BigEndian>()?,
                     width: input.read_u16::<BigEndian>()?,
                     height: input.read_u16::<BigEndian>()?,
-                    flag: crop_flag,
                 }
-            )
-        } else {
-            None
+            }
+            x => {
+                return Err(ReadError::UnrecognizedCropFlag { parsed_crop_flag: x })
+            }
         };
 
         composition_objects.push(
