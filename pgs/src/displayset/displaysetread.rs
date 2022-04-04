@@ -114,7 +114,7 @@ enum Sequence {
 
 /// Allows reading display sets from a source.
 pub trait ReadDisplaySetExt {
-    /// Reads the next segment from a source.
+    /// Reads the next display set from a source.
     fn read_display_set(&mut self) -> ReadResult<DisplaySet>;
 }
 

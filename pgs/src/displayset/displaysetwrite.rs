@@ -33,22 +33,30 @@ use thiserror::Error as ThisError;
 const IODS_DATA_SIZE: usize = 65_508;
 const MODS_DATA_SIZE: usize = 65_515;
 
+/// A specialized [`Result`](std::result::Result) type for display set-writing operations.
 pub type WriteResult<T> = Result<T, WriteError>;
 
+/// The error type for [WriteDisplaySetExt].
+///
+/// Errors are caused by either an inability to deconstruct a display set (DS) into segments, or
+/// by an underlying I/O error.
 #[derive(ThisError, Debug)]
 pub enum WriteError {
+    /// The display set could not be written because of an underlying segment error.
     #[error("segment value error")]
     SegmentError {
         #[from]
         source: SegmentWriteError,
     },
-    /// The [`Segment`] ([`ObjectDefinitionSegment`]) being written has a line with more than
-    /// 16,383 pixels.
+    /// The object definition segment (ODS) being generated has a line with more than 16,383
+    /// pixels.
     #[error("object line too long")]
     ObjectLineTooLong,
 }
 
+/// Allows writing display sets to a sink.
 pub trait WriteDisplaySetExt {
+    /// Writes the next display set to a sink.
     fn write_display_set(&mut self, display_set: DisplaySet) -> WriteResult<()>;
 }
 
