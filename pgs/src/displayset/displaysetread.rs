@@ -76,12 +76,6 @@ pub enum ReadError {
     /// A single object ID of the same version has been defined twice.
     #[error("duplicate object ID and version detected")]
     DuplicateObjectVid,
-    /// The display set composition definition references an unknown object ID.
-    #[error("composition references unknown object ID")]
-    CompositionReferencesUnknownObjectId,
-    /// The display set composition definition references an unknown window ID.
-    #[error("composition references unknown window ID")]
-    CompositionReferencesUnknownWindowId,
     /// A palette update sequence references an unknown palette ID.
     #[error("palette update references unknown palette ID")]
     PaletteUpdateReferencesUnknownPaletteId,
@@ -388,13 +382,6 @@ impl DisplaySet {
         }
 
         for co in pcs.composition_objects.iter() {
-            // TODO: Maybe re-enable.
-            // if !objects.keys().any(|vid| vid.id == co.object_id) {
-            //     return Err(ReadError::CompositionReferencesUnknownObjectId)
-            // }
-            // if !windows.contains_key(&co.window_id) {
-            //     return Err(ReadError::CompositionReferencesUnknownWindowId)
-            // }
             composition_objects.insert(
                 Cid {
                     object_id: co.object_id,
