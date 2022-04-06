@@ -158,7 +158,6 @@ impl DisplaySet {
     pub fn from_segments<T>(value: T) -> ReadResult<Self> where
         T: IntoIterator<Item = Segment>
     {
-
         let mut es = None;
         let mut sequence = Sequence::Single;
         let mut initial_object = None;
