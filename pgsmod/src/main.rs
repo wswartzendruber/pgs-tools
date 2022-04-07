@@ -259,7 +259,7 @@ fn main() {
                     objects.clear();
                 }
 
-                for (vid, object) in display_set.objects.iter() {
+                for (vid, object) in &display_set.objects {
                     objects.insert(vid.id, object.clone());
                 }
 
@@ -275,7 +275,7 @@ fn main() {
                                 wc.size, wc.offset, window.width, window.x, margin
                             );
                         }
-                        for (cid, co) in display_set.composition.objects.iter_mut() {
+                        for (cid, co) in &mut display_set.composition.objects {
                             match objects.get(&cid.object_id) {
                                 Some(object) => {
                                     co.x = new_item_offset(
@@ -301,7 +301,7 @@ fn main() {
                                 hc.size, hc.offset, window.height, window.y, margin
                             );
                         }
-                        for (cid, co) in display_set.composition.objects.iter_mut() {
+                        for (cid, co) in &mut display_set.composition.objects {
                             match objects.get(&cid.object_id) {
                                 Some(object) => {
                                     co.y = new_item_offset(

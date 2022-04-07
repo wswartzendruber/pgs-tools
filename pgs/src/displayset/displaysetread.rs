@@ -196,7 +196,7 @@ impl DisplaySet {
                     if wds.dts != pcs.dts {
                         return Err(ReadError::InconsistentDts)
                     }
-                    for wd in wds.windows.iter() {
+                    for wd in wds.windows {
                         if windows.contains_key(&wd.id) {
                             return Err(ReadError::DuplicateWindowId)
                         }
@@ -337,7 +337,7 @@ impl DisplaySet {
                                 };
                                 let mut data = Vec::new();
                                 data.append(&mut iods.data);
-                                for mods in middle_objects.iter_mut() {
+                                for mods in &mut middle_objects {
                                     data.append(&mut mods.data);
                                 }
                                 data.append(&mut fods.data);
@@ -380,7 +380,7 @@ impl DisplaySet {
             return Err(ReadError::MissingEndSegment)
         }
 
-        for co in pcs.composition_objects.iter() {
+        for co in pcs.composition_objects {
             composition_objects.insert(
                 Cid {
                     object_id: co.object_id,

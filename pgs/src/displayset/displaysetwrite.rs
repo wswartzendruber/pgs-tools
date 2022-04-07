@@ -123,7 +123,7 @@ impl DisplaySet {
             ));
         }
 
-        for (vid, palette) in self.palettes.iter() {
+        for (vid, palette) in &self.palettes {
             segments.push(Segment::PaletteDefinition(
                 PaletteDefinitionSegment {
                     pts: self.pts,
@@ -143,7 +143,7 @@ impl DisplaySet {
             ));
         }
 
-        for (vid, object) in self.objects.iter() {
+        for (vid, object) in &self.objects {
 
             let data = rle_compress(&object.lines)?;
             let mut index = 0;
@@ -218,9 +218,9 @@ fn rle_compress(input: &Vec<Vec<u8>>) -> WriteResult<Vec<u8>> {
     let mut byte = 0_u8;
     let mut count = 0_usize;
 
-    for line in input.iter() {
+    for line in input {
 
-        for next_byte in line.iter() {
+        for next_byte in line {
             if *next_byte == byte {
                 count += 1;
             } else {

@@ -99,7 +99,7 @@ fn main() {
                     }
                     Segment::WindowDefinition(wds) => {
                         println!("window_definition_segment({})", ts_to_timestamp(wds.pts));
-                        for wd in wds.windows.iter() {
+                        for wd in &wds.windows {
                             println!("  window_id = {}", wd.id);
                             println!("  window_horizontal_position = {}", wd.x);
                             println!("  window_vertical_position = {}", wd.y);

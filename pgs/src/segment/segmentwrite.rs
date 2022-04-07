@@ -194,7 +194,7 @@ fn generate_wds(wds: &WindowDefinitionSegment) -> WriteResult<Vec<u8>> {
         return Err(WriteError::TooManyWindowDefinitions)
     }
 
-    for window in wds.windows.iter() {
+    for window in &wds.windows {
         payload.write_u8(window.id)?;
         payload.write_u16::<BigEndian>(window.x)?;
         payload.write_u16::<BigEndian>(window.y)?;
