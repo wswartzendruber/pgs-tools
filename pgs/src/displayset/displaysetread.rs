@@ -33,18 +33,35 @@ use thiserror::Error as ThisError;
 /// A specialized [`Result`](std::result::Result) type for display set-reading operations.
 pub type ReadResult<T> = Result<T, ReadError>;
 
+/// A specialized [`Result`](std::result::Result) type for display set-parsing operations.
+pub type ParseResult<T> = Result<T, ParseError>;
+
 /// The error type for [ReadDisplaySetExt].
 ///
-/// Errors are caused by either an invalid combination of segments, an invalid bitstream, or by
-/// an underlying I/O error.
+/// Errors are caused by either an invalid combination of segments, invalid properties within
+/// those segments, an invalid bitstream, or by an underlying I/O error.
 #[derive(ThisError, Debug)]
 pub enum ReadError {
     /// The display set could not be read because of an underlying segment error.
-    #[error("segment value error")]
-    SegmentError {
+    #[error("segment read error")]
+    ReadError {
         #[from]
         source: SegmentReadError,
     },
+    /// The collection of segments could not be parsed into a display set.
+    #[error("display set parse error")]
+    ParseError {
+        #[from]
+        source: ParseError,
+    },
+}
+
+/// The error type for parsing a collection of segments into a display set.
+///
+/// Errors are caused by either an invalid combination of segments or by invalid properties
+/// within the segments being parsed.
+#[derive(ThisError, Debug)]
+pub enum ParseError {
     /// The display set contains no segments.
     #[error("no segments")]
     NoSegments,
@@ -112,9 +129,9 @@ enum Sequence {
     Final,
 }
 
-/// Allows reading display sets from a source.
+/// Allows reading display sets from an input source.
 pub trait ReadDisplaySetExt {
-    /// Reads the next display set from a source.
+    /// Reads the next display set from an input source.
     fn read_display_set(&mut self) -> ReadResult<DisplaySet>;
 }
 
@@ -130,14 +147,22 @@ impl<T> ReadDisplaySetExt for T where
                 segments.push(Segment::PresentationComposition(pcs));
             }
             _ => {
-                return Err(ReadError::MissingPresentationCompositionSegment)
+                return Err(
+                    ReadError::ParseError {
+                        source: ParseError::MissingPresentationCompositionSegment
+                    }
+                )
             }
         };
 
         loop {
             match self.read_segment()? {
                 Segment::PresentationComposition(_) => {
-                    return Err(ReadError::UnexpectedPresentationCompositionSegment)
+                    return Err(
+                        ReadError::ParseError {
+                            source: ParseError::UnexpectedPresentationCompositionSegment
+                        }
+                    )
                 }
                 Segment::End(es) => {
                     segments.push(Segment::End(es));
@@ -149,14 +174,14 @@ impl<T> ReadDisplaySetExt for T where
             }
         }
 
-        DisplaySet::from_segments(segments)
+        Ok(DisplaySet::try_from(&segments)?)
     }
 }
 
 impl DisplaySet {
 
-    pub fn from_segments<T>(value: T) -> ReadResult<Self> where
-        T: IntoIterator<Item = Segment>
+    fn try_from<'a, T>(value: T) -> ParseResult<Self> where
+        T: IntoIterator<Item = &'a Segment>
     {
         let mut es = None;
         let mut sequence = Sequence::Single;
@@ -171,34 +196,34 @@ impl DisplaySet {
             Some(segment) => {
                 match segment {
                     Segment::PresentationComposition(pcs) => pcs,
-                    _ => return Err(ReadError::MissingPresentationCompositionSegment),
+                    _ => return Err(ParseError::MissingPresentationCompositionSegment),
                 }
             }
             None => {
-                return Err(ReadError::NoSegments)
+                return Err(ParseError::NoSegments)
             }
         };
 
         while let Some(segment) = iterator.next() {
 
             if es.is_some() {
-                return Err(ReadError::SegmentAfterEnd)
+                return Err(ParseError::SegmentAfterEnd)
             }
 
-            match segment {
+            match &segment {
                 Segment::PresentationComposition(_) => {
-                    return Err(ReadError::UnexpectedPresentationCompositionSegment)
+                    return Err(ParseError::UnexpectedPresentationCompositionSegment)
                 }
                 Segment::WindowDefinition(wds) => {
                     if wds.pts != pcs.pts {
-                        return Err(ReadError::InconsistentPts)
+                        return Err(ParseError::InconsistentPts)
                     }
                     if wds.dts != pcs.dts {
-                        return Err(ReadError::InconsistentDts)
+                        return Err(ParseError::InconsistentDts)
                     }
-                    for wd in wds.windows {
+                    for wd in &wds.windows {
                         if windows.contains_key(&wd.id) {
-                            return Err(ReadError::DuplicateWindowId)
+                            return Err(ParseError::DuplicateWindowId)
                         }
                         windows.insert(
                             wd.id,
@@ -213,17 +238,17 @@ impl DisplaySet {
                 }
                 Segment::PaletteDefinition(pds) => {
                     if pds.pts != pcs.pts {
-                        return Err(ReadError::InconsistentPts)
+                        return Err(ParseError::InconsistentPts)
                     }
                     if pds.dts != pcs.dts {
-                        return Err(ReadError::InconsistentDts)
+                        return Err(ParseError::InconsistentDts)
                     }
                     let vid = Vid {
                         id: pds.id,
                         version: pds.version,
                     };
                     if palettes.contains_key(&vid) {
-                        return Err(ReadError::DuplicatePaletteVid)
+                        return Err(ParseError::DuplicatePaletteVid)
                     }
                     palettes.insert(
                         vid,
@@ -242,17 +267,17 @@ impl DisplaySet {
                 Segment::SingleObjectDefinition(sods) => {
                     if sequence == Sequence::Single || sequence == Sequence::Final {
                         if sods.pts != pcs.pts {
-                            return Err(ReadError::InconsistentPts)
+                            return Err(ParseError::InconsistentPts)
                         }
                         if sods.dts != pcs.dts {
-                            return Err(ReadError::InconsistentDts)
+                            return Err(ParseError::InconsistentDts)
                         }
                         let vid = Vid {
                             id: sods.id,
                             version: sods.version,
                         };
                         if objects.contains_key(&vid) {
-                            return Err(ReadError::DuplicateObjectVid)
+                            return Err(ParseError::DuplicateObjectVid)
                         }
                         objects.insert(
                             vid,
@@ -264,28 +289,28 @@ impl DisplaySet {
                         );
                         sequence = Sequence::Single;
                     } else {
-                        return Err(ReadError::InvalidObjectSequence)
+                        return Err(ParseError::InvalidObjectSequence)
                     }
                 }
                 Segment::InitialObjectDefinition(iods) => {
                     if sequence == Sequence::Single || sequence == Sequence::Final {
                         if iods.pts != pcs.pts {
-                            return Err(ReadError::InconsistentPts)
+                            return Err(ParseError::InconsistentPts)
                         }
                         if iods.dts != pcs.dts {
-                            return Err(ReadError::InconsistentDts)
+                            return Err(ParseError::InconsistentDts)
                         }
                         let vid = Vid {
                             id: iods.id,
                             version: iods.version,
                         };
                         if objects.contains_key(&vid) {
-                            return Err(ReadError::DuplicateObjectVid)
+                            return Err(ParseError::DuplicateObjectVid)
                         }
                         initial_object = Some(iods);
                         sequence = Sequence::Initial;
                     } else {
-                        return Err(ReadError::InvalidObjectSequence)
+                        return Err(ParseError::InvalidObjectSequence)
                     }
                 }
                 Segment::MiddleObjectDefinition(mods) => {
@@ -293,16 +318,16 @@ impl DisplaySet {
                         match &initial_object {
                             Some(iods) => {
                                 if mods.pts != pcs.pts {
-                                    return Err(ReadError::InconsistentPts)
+                                    return Err(ParseError::InconsistentPts)
                                 }
                                 if mods.dts != pcs.dts {
-                                    return Err(ReadError::InconsistentDts)
+                                    return Err(ParseError::InconsistentDts)
                                 }
                                 if mods.id != iods.id {
-                                    return Err(ReadError::InconsistentObjectId)
+                                    return Err(ParseError::InconsistentObjectId)
                                 }
                                 if mods.version != iods.version {
-                                    return Err(ReadError::InconsistentObjectVersion)
+                                    return Err(ParseError::InconsistentObjectVersion)
                                 }
                                 middle_objects.push(mods);
                                 sequence = Sequence::Middle;
@@ -312,35 +337,35 @@ impl DisplaySet {
                             }
                         }
                     } else {
-                        return Err(ReadError::InvalidObjectSequence)
+                        return Err(ParseError::InvalidObjectSequence)
                     }
                 }
-                Segment::FinalObjectDefinition(mut fods) => {
+                Segment::FinalObjectDefinition(fods) => {
                     if sequence == Sequence::Initial || sequence == Sequence::Middle {
                         match &mut initial_object {
                             Some(iods) => {
                                 if fods.pts != pcs.pts {
-                                    return Err(ReadError::InconsistentPts)
+                                    return Err(ParseError::InconsistentPts)
                                 }
                                 if fods.dts != pcs.dts {
-                                    return Err(ReadError::InconsistentDts)
+                                    return Err(ParseError::InconsistentDts)
                                 }
                                 if fods.id != iods.id {
-                                    return Err(ReadError::InconsistentObjectId)
+                                    return Err(ParseError::InconsistentObjectId)
                                 }
                                 if fods.version != iods.version {
-                                    return Err(ReadError::InconsistentObjectVersion)
+                                    return Err(ParseError::InconsistentObjectVersion)
                                 }
                                 let vid = Vid {
                                     id: iods.id,
                                     version: iods.version,
                                 };
                                 let mut data = Vec::new();
-                                data.append(&mut iods.data);
+                                data.append(&mut iods.data.clone());
                                 for mods in &mut middle_objects {
-                                    data.append(&mut mods.data);
+                                    data.append(&mut mods.data.clone());
                                 }
-                                data.append(&mut fods.data);
+                                data.append(&mut fods.data.clone());
                                 objects.insert(
                                     vid,
                                     Object {
@@ -358,18 +383,18 @@ impl DisplaySet {
                             }
                         }
                     } else {
-                        return Err(ReadError::InvalidObjectSequence)
+                        return Err(ParseError::InvalidObjectSequence)
                     }
                 }
                 Segment::End(this_es) => {
                     if sequence != Sequence::Single && sequence != Sequence::Final {
-                        return Err(ReadError::IncompleteObjectSequence)
+                        return Err(ParseError::IncompleteObjectSequence)
                     }
                     if this_es.pts != pcs.pts {
-                        return Err(ReadError::InconsistentPts)
+                        return Err(ParseError::InconsistentPts)
                     }
                     if this_es.dts != pcs.dts {
-                        return Err(ReadError::InconsistentDts)
+                        return Err(ParseError::InconsistentDts)
                     }
                     es = Some(this_es);
                 }
@@ -377,10 +402,10 @@ impl DisplaySet {
         }
 
         if es.is_none() {
-            return Err(ReadError::MissingEndSegment)
+            return Err(ParseError::MissingEndSegment)
         }
 
-        for co in pcs.composition_objects {
+        for co in &pcs.composition_objects {
             composition_objects.insert(
                 Cid {
                     object_id: co.object_id,
@@ -404,7 +429,7 @@ impl DisplaySet {
         match pcs.palette_update_id {
             Some(palette_update_id) => {
                 if !palettes.keys().any(|vid| vid.id == palette_update_id) {
-                    return Err(ReadError::PaletteUpdateReferencesUnknownPaletteId)
+                    return Err(ParseError::PaletteUpdateReferencesUnknownPaletteId)
                 }
             }
             None => {
@@ -428,7 +453,7 @@ impl DisplaySet {
     }
 }
 
-fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
+fn rle_decompress(input: &[u8]) -> ParseResult<Vec<Vec<u8>>> {
 
     let mut output = Vec::<Vec<u8>>::new();
     let mut line = vec![];
@@ -458,7 +483,7 @@ fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
                                         }
                                     }
                                     None => {
-                                        return Err(ReadError::IncompleteRleSequence)
+                                        return Err(ParseError::IncompleteRleSequence)
                                     }
                                 }
                             } else if *byte_2 >> 6 == 2 {
@@ -469,7 +494,7 @@ fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
                                         }
                                     }
                                     None => {
-                                        return Err(ReadError::IncompleteRleSequence)
+                                        return Err(ParseError::IncompleteRleSequence)
                                     }
                                 }
                             } else if *byte_2 >> 6 == 3 {
@@ -485,20 +510,20 @@ fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
                                                 }
                                             }
                                             None => {
-                                                return Err(ReadError::IncompleteRleSequence)
+                                                return Err(ParseError::IncompleteRleSequence)
                                             }
                                         }
                                     }
                                     None => {
-                                        return Err(ReadError::IncompleteRleSequence)
+                                        return Err(ParseError::IncompleteRleSequence)
                                     }
                                 }
                             } else {
-                                return Err(ReadError::InvalidRleSequence)
+                                return Err(ParseError::InvalidRleSequence)
                             }
                         }
                         None => {
-                            return Err(ReadError::IncompleteRleSequence)
+                            return Err(ParseError::IncompleteRleSequence)
                         }
                     }
                 } else {
@@ -512,7 +537,7 @@ fn rle_decompress(input: &[u8]) -> ReadResult<Vec<Vec<u8>>> {
     }
 
     if !line.is_empty() {
-        return Err(ReadError::IncompleteRleLine)
+        return Err(ParseError::IncompleteRleLine)
     }
 
     Ok(output)

@@ -63,7 +63,7 @@ fn main() {
             }
             Err(err) => {
                 match err {
-                    DisplaySetReadError::SegmentError { source } => {
+                    DisplaySetReadError::ReadError { source } => {
                         match source {
                             SegmentReadError::IoError { source } => {
                                 if source.kind() != ErrorKind::UnexpectedEof {

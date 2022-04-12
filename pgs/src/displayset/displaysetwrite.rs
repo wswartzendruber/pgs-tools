@@ -66,7 +66,7 @@ impl<T> WriteDisplaySetExt for T where
 
     fn write_display_set(&mut self, display_set: DisplaySet) -> WriteResult<()> {
 
-        let segments = display_set.into_segments()?;
+        let segments = display_set.to_segments()?;
 
         for segment in segments.into_iter() {
             self.write_segment(&segment)?;
@@ -78,7 +78,7 @@ impl<T> WriteDisplaySetExt for T where
 
 impl DisplaySet {
 
-    fn into_segments(self) -> WriteResult<Vec<Segment>> {
+    fn to_segments(&self) -> WriteResult<Vec<Segment>> {
 
         let mut segments = Vec::<Segment>::new();
 
