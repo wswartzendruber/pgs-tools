@@ -203,18 +203,18 @@ fn parse_pcs(
         _ => return Err(ReadError::UnrecognizedCompositionState { parsed_composition_state }),
     };
     let parsed_palette_update_flag =input.read_u8()?;
-    let palette_update_id = match parsed_palette_update_flag {
+    let palette_update_only = match parsed_palette_update_flag {
         0x00 => {
-            input.read_u8()?;
-            None
+            false
         }
         0x80 => {
-            Some(input.read_u8()?)
+            true
         }
         _ => {
             return Err(ReadError::UnrecognizedPaletteUpdateFlag { parsed_palette_update_flag })
         }
     };
+    let palette_id = input.read_u8()?;
     let comp_obj_count = input.read_u8()? as usize;
     let mut composition_objects = Vec::new();
 
@@ -260,7 +260,8 @@ fn parse_pcs(
             frame_rate,
             composition_number,
             composition_state,
-            palette_update_id,
+            palette_update_only,
+            palette_id,
             composition_objects,
         }
     )

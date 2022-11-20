@@ -72,10 +72,12 @@ fn main() {
                             CompositionState::Normal => "NORMAL_CASE",
                             CompositionState::AcquisitionPoint => "ACQUISITION_POINT",
                         });
-                        match pcs.palette_update_id {
-                            Some(pal_id) => println!("  palette_update_id = {}", pal_id),
-                            None => (),
+                        if pcs.palette_update_only {
+                            println!("  palette_update_flags = 0x80")
+                        } else {
+                            println!("  palette_update_flags = 0x00")
                         }
+                        println!("  palette_id = {}", pcs.palette_id);
                         for comp_obj in pcs.composition_objects.iter() {
                             println!("  window_information");
                             println!("    object_id = {}", comp_obj.object_id);

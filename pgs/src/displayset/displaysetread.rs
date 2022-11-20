@@ -426,13 +426,9 @@ impl DisplaySet {
             objects: composition_objects,
         };
 
-        match pcs.palette_update_id {
-            Some(palette_update_id) => {
-                if !palettes.keys().any(|vid| vid.id == palette_update_id) {
-                    return Err(ParseError::PaletteUpdateReferencesUnknownPaletteId)
-                }
-            }
-            None => {
+        if pcs.palette_update_only {
+            if !palettes.keys().any(|vid| vid.id == pcs.palette_id) {
+                return Err(ParseError::PaletteUpdateReferencesUnknownPaletteId)
             }
         }
 
@@ -443,7 +439,8 @@ impl DisplaySet {
                 width: pcs.width,
                 height: pcs.height,
                 frame_rate: pcs.frame_rate,
-                palette_update_id: pcs.palette_update_id,
+                palete_update_only: pcs.palette_update_only,
+                palette_id: pcs.palette_id,
                 windows,
                 palettes,
                 objects,
