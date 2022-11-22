@@ -91,7 +91,8 @@ impl DisplaySet {
                 frame_rate: self.frame_rate,
                 composition_number: self.composition.number,
                 composition_state: self.composition.state,
-                palette_update_id: self.palette_update_id,
+                palette_update_only: self.palete_update_only,
+                palette_id: self.palette_id,
                 composition_objects: self.composition.objects.iter().map(|(cid, co)|
                     CompositionObject {
                         object_id: cid.object_id,

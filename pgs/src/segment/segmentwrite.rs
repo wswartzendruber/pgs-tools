@@ -144,16 +144,13 @@ fn generate_pcs(pcs: &PresentationCompositionSegment) -> WriteResult<Vec<u8>> {
         }
     )?;
 
-    match pcs.palette_update_id {
-        Some(pal_id) => {
-            payload.write_u8(0x80)?;
-            payload.write_u8(pal_id)?;
-        }
-        None => {
-            payload.write_u8(0x00)?;
-            payload.write_u8(0)?;
-        }
+    if pcs.palette_update_only {
+        payload.write_u8(0x80)?;
+    } else {
+        payload.write_u8(0x00)?;
     }
+
+    payload.write_u8(pcs.palette_id)?;
 
     if pcs.composition_objects.len() <= 255 {
         payload.write_u8(pcs.composition_objects.len() as u8)?;

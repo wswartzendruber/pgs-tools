@@ -31,7 +31,8 @@ fn test_pcs_cycle_no_pui_no_co() {
             frame_rate: rng.gen(),
             composition_number: rng.gen(),
             composition_state: CompositionState::Normal,
-            palette_update_id: None,
+            palette_update_only: false,
+            palette_id: 0x00,
             composition_objects: vec![],
         }
     );
@@ -52,7 +53,8 @@ fn test_pcs_cycle_no_pui_co() {
             frame_rate: rng.gen(),
             composition_number: rng.gen(),
             composition_state: CompositionState::Normal,
-            palette_update_id: None,
+            palette_update_only: false,
+            palette_id: 0x00,
             composition_objects: vec![
                 CompositionObject {
                     object_id: rng.gen(),
@@ -97,7 +99,8 @@ fn test_pcs_cycle_pui_no_co() {
             frame_rate: rng.gen(),
             composition_number: rng.gen(),
             composition_state: CompositionState::Normal,
-            palette_update_id: Some(rng.gen()),
+            palette_update_only: true,
+            palette_id: rng.gen(),
             composition_objects: vec![],
         }
     );
@@ -118,7 +121,8 @@ fn test_pcs_cycle_pui_co() {
             frame_rate: rng.gen(),
             composition_number: rng.gen(),
             composition_state: CompositionState::Normal,
-            palette_update_id: Some(rng.gen()),
+            palette_update_only: true,
+            palette_id: rng.gen(),
             composition_objects: vec![
                 CompositionObject {
                     object_id: rng.gen(),

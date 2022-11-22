@@ -144,8 +144,10 @@ pub struct PresentationCompositionSegment {
     pub composition_number: u16,
     /// Defines the role of the current DS within the larger epoch.
     pub composition_state: CompositionState,
-    /// If set, indicates the ID of a preceding palette to be updated within the epoch.
-    pub palette_update_id: Option<u8>,
+    /// If set, palette_id indicates the palette for updating.
+    pub palette_update_only: bool,
+    /// The palette ID to use when rendering the bitmap.
+    pub palette_id: u8,
     /// Maps an epoch's objects (or areas within them) to its windows.
     pub composition_objects: Vec<CompositionObject>,
 }
