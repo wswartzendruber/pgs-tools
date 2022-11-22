@@ -61,7 +61,8 @@ pub struct DisplaySet {
     pub height: u16,
     /// This value should be set to `0x10` but can otherwise be typically ignored.
     pub frame_rate: u8,
-    /// If set, palette_id indicates the ID of a preceding palette to be updated within the epoch.
+    /// If set, palette_id indicates the ID of a preceding palette to be updated within the
+    /// epoch.
     pub palete_update_only: bool,
     /// The palette ID to use when rendering the bitmap.
     pub palette_id: u8,
