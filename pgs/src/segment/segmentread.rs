@@ -202,7 +202,7 @@ fn parse_pcs(
         0x80 => CompositionState::EpochStart,
         _ => return Err(ReadError::UnrecognizedCompositionState { parsed_composition_state }),
     };
-    let parsed_palette_update_flag =input.read_u8()?;
+    let parsed_palette_update_flag = input.read_u8()?;
     let palette_update_only = match parsed_palette_update_flag {
         0x00 => {
             false
