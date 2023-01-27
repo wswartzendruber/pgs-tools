@@ -1,0 +1,113 @@
+#
+# Copyright 2023 William Swartzendruber
+#
+# To the extent possible under law, the person who associated CC0 with this file has waived all
+# copyright and related or neighboring rights to this file.
+#
+# You should have received a copy of the CC0 legalcode along with this work. If not, see
+# <http://creativecommons.org/publicdomain/zero/1.0/>.
+#
+# SPDX-License-Identifier: CC0-1.0
+#
+
+name: Create Release
+on:
+  push:
+    tags:
+      - 'release/*'
+jobs:
+  extract_version:
+    name: Extract Version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract release text
+        run: echo "VERSION=$(echo "$GITHUB_REF_NAME" | sed -e 's/^release\///')" >> $GITHUB_ENV
+        shell: bash
+    outputs:
+      version: ${{ env.VERSION }}
+  build_linux:
+    name: Build (Linux)
+    needs: extract_version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build binaries
+        run: cargo build --release
+      - name: Run tests
+        run: cargo test --release
+      - name: Install cargo-about
+        run: cargo install --locked cargo-about
+      - name: Generate licensing information
+        run: cargo about generate about.hbs > licenses.html
+      - name: Create archive
+        run: tar --create --xz --file pgs-tools-${{ needs.extract_version.outputs.version }}-linux-amd64.tar.xz licenses.html --directory target/release pgsdump pgsmod pgstest
+      - name: Upload binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: linux-amd64
+          path: pgs-tools-${{ needs.extract_version.outputs.version }}-linux-amd64.tar.xz
+  build_windows:
+    name: Build (Windows)
+    needs: extract_version
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build binaries
+        run: cargo build --release
+      - name: Run tests
+        run: cargo test --release
+      - name: Install cargo-about
+        run: cargo install --locked cargo-about
+      - name: Generate licensing information
+        run: cargo about generate about.hbs > licenses.html
+      - name: Create archive
+        run: Compress-Archive -Path licenses.html, target\release\*.exe -DestinationPath pgs-tools-${{ needs.extract_version.outputs.version }}-windows-amd64.zip
+        shell: pwsh
+      - name: Upload binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: windows-amd64
+          path: pgs-tools-${{ needs.extract_version.outputs.version }}-windows-amd64.zip
+  create_release:
+    needs: [extract_version, build_linux, build_windows]
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ needs.extract_version.outputs.version }}
+          draft: true
+          prerelease: true
+      - name: Download linux-amd64
+        uses: actions/download-artifact@v2
+        with:
+          name: linux-amd64
+      - name: Download windows-amd64
+        uses: actions/download-artifact@v2
+        with:
+          name: windows-amd64
+      - name: Upload linux-amd64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: pgs-tools-${{ needs.extract_version.outputs.version }}-linux-amd64.tar.xz
+          asset_name: pgs-tools-${{ needs.extract_version.outputs.version }}-linux-amd64.tar.xz
+          asset_content_type: application/zip
+      - name: Upload windows-amd64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: pgs-tools-${{ needs.extract_version.outputs.version }}-windows-amd64.zip
+          asset_name: pgs-tools-${{ needs.extract_version.outputs.version }}-windows-amd64.zip
+          asset_content_type: application/zip
