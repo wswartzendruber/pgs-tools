@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 William Swartzendruber
+ * Copyright 2023 William Swartzendruber
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a
  * copy of the MPL was not distributed with this file, You can obtain one at
@@ -14,6 +14,7 @@ mod tests;
 mod rgb;
 
 use pgs::{
+    ts_to_timestamp,
     displayset::{
         Object,
         ReadDisplaySetExt,
@@ -284,7 +285,10 @@ fn main() {
                                 }
                                 None =>
                                 {
-                                    panic!("Object referenced by composition not found.")
+                                    eprintln!(
+                                        "WARNING: {} - Referenced object not found.",
+                                        ts_to_timestamp(display_set.pts),
+                                    )
                                 }
                             }
                         }
@@ -310,7 +314,10 @@ fn main() {
                                 }
                                 None =>
                                 {
-                                    panic!("Object referenced by composition not found.")
+                                    eprintln!(
+                                        "WARNING: {} - Referenced object not found.",
+                                        ts_to_timestamp(display_set.pts),
+                                    )
                                 }
                             }
                         }
