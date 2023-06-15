@@ -1,5 +1,5 @@
 <!--
-    Copyright 2021 William Swartzendruber
+    Copyright 2023 William Swartzendruber
 
     This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a
     copy of the MPL was not distributed with this file, You can obtain one at
@@ -8,9 +8,10 @@
     SPDX-License-Identifier: MPL-2.0
 -->
 
-# Under Construction
+# No Longer Maintained
 
-This project is not yet ready for public consumption.
+This project is no longer maintained. I am doing all new PGS work under a different which I am
+currently calling PGS4NET.
 
 # Licensing
 
